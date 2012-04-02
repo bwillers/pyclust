@@ -1,0 +1,6 @@
+glob:*_neo.ntt
+glob:*.pyc
+glob:*.mat
+glob:MClust-3.5*
+glob:*.fd
+glob:*.m
