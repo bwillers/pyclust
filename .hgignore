@@ -4,3 +4,5 @@ glob:*.mat
 glob:MClust-3.5*
 glob:*.fd
 glob:*.m
+glob:*.bounds
+glob:*.cluster
