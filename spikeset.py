@@ -5,13 +5,11 @@ Created on Fri Mar 30 04:18:30 2012
 @author: Bernard
 """
 
-import scipy.io as sio
 import numpy as np
 import random
 import matplotlib.nxutils as nx
 import time
 import features
-import pickle
 
 def loadNtt(filename):
     f = open(filename, 'rb')    
@@ -38,7 +36,7 @@ def loadNtt(filename):
     dt = np.dtype([('time', '<Q'), ('filer', '<i', 10), ('spikes', np.dtype('<h'), (32,4))])
     temp = np.fromfile(f, dt)
 
-    return Spikeset(temp['spikes'] * np.reshape(a2d_conversion, [1,1,4]), temp['time'])
+    return Spikeset(temp['spikes'] * np.reshape(a2d_conversion, [1,1,4]), temp['time'], 8)
     
 #    else:    
 #        # Slow loopy way to read
@@ -72,15 +70,24 @@ def loadNtt(filename):
 
 # Spike data is N x L x C
 class Spikeset:
-    def __init__(self, spikes, timestamps):
+    def __init__(self, spikes, timestamps, peak_index = 8):        
         self.spikes = spikes
         self.time = timestamps
         self.N = len(timestamps)
-        self.features = [features.Feature_Peak(self)]
+        self.peak_index = 8
+        self.features = [features.Feature_Peak(self), features.Feature_Energy(self), features.Feature_Time(self), features.Feature_Valley(self), features.Feature_Aligned_Peak(self)]
         self.T = (max(self.time) - min(self.time))/1e6
         
     def __del__(self):
         print "Spikeset object being destroyed"
+        
+    def featureNames(self):
+        return [feature.name for feature in self.features]
+        
+    def featureByName(self, name):
+        for feature in self.features:
+            if feature.name == name: return feature
+        return None
 
 # Clusters have a color, a set of boundaries and some calculation functions
 class Cluster:
@@ -190,76 +197,18 @@ class Cluster:
 
 
 if __name__ == "__main__":
-    t1 = time.clock()
+
     print "Loading ntt"
-    spikeset = loadNtt('TT15_neo.ntt')
+    spikeset = loadNtt('Sample2.ntt')
     
-    #sio.savemat('test', {'spike':spikeset.spikes[:,:,:], 'time':spikeset.time[:]}, oned_as='row')
-    #print "Took", time.clock() - t1, "seconds"
+    print spikeset.featureNames()
     
-    if True:
-        print "Constructing cluster object"
-        clust = Cluster(spikeset)
-    #    clust.calculateMembership(spikeset)
-        poly = np.array([[50,0], [250,0], [50,150], [150,150]], float)
-        bound = ('Peak', 0, 'Peak', 1, poly)
-        clust.addBound(('Peak', 0, 'Peak', 1, poly))
-        clust.addBound(('Peak', 0, 'Peak', 3, poly))
-        clust.addBound(('Peak', 1, 'Peak', 2, poly))
+    print spikeset.features[0].valid_y_features(1)
     
-        clust.calculateMembership(spikeset)
-        
-        clusters= [clust]
-        clusters.append(Cluster(spikeset))
-        clusters[1].addBound(('Peak', 2, 'Peak', 3, poly))
-        clusters[1].calculateMembership(spikeset)
-        
-        temp = [(cluster.color, cluster.bounds) for cluster in clusters ]        
-        
-        outf = open('test_out.bounds', 'wb')
-        pickle.dump(temp, outf)
-        outf.close()
-        
-        cluster_member = [cluster.member for cluster in clusters]
-        cluster_stats = [cluster.stats for cluster in clusters]
-        
-        save_data = {'cluster_id':temp, 'spike_time':spikeset.time}
-        for key in cluster_stats[0].keys():
-            save_data[key] = [stat[key] for stat in cluster_stats]
-            
-        print save_data
-        
-        temp = np.column_stack(tuple(cluster_member))
-        print np.shape(temp)
-        sio.savemat('test', save_data, oned_as='row')
-        
-    else:
-        print "Loading bounds"
-        outf = open('test_out.bounds', 'rb')
-        bounds = pickle.load(outf)
-        outf.close()
-        
-        clusters = []
-        for saved_bound in bounds:
-            cluster = Cluster(spikeset)
-            cluster.color = saved_bound[0]
-            cluster.bounds = saved_bound[1]
-            cluster.calculateMembership(spikeset)
+    print spikeset.featureByName('Peak')
+    print spikeset.featureByName('Peak').valid_x_features()
+    
+    print spikeset.featureByName('Time')
+    print spikeset.featureByName('Time').valid_x_features()
 
-            print cluster.stats
-            
-            clusters.append(cluster)
-            
-        print len(clusters)
-    
-    del clusters
     del spikeset
-#    
-#    print clust.stats
-#    
-#    clusters = [clust, clust]
-#    
-#    temp = np.column_stack([clust.member for clust in clusters])
-
-#    sio.savemat('test', {'cluster_id':temp, 'spike_time':spikeset.time}, oned_as='row')
-    

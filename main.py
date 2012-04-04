@@ -46,8 +46,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
         QtCore.QObject.connect(self.ui.pushButton, QtCore.SIGNAL("clicked()"),  self.button_load_click)
         QtCore.QObject.connect(self.ui.pushButton_copy_cluster, QtCore.SIGNAL("clicked()"), self.copyCluster)
         QtCore.QObject.connect(self.ui.pushButton_import, QtCore.SIGNAL("clicked()"), self.importBounds)
+        QtCore.QObject.connect(self.ui.pushButton_save, QtCore.SIGNAL("clicked()"), self.save)
         QtCore.QObject.connect(self.ui.comboBox_feature_x_chan, QtCore.SIGNAL("currentIndexChanged(int)"), self.feature_channel_x_changed)
+        QtCore.QObject.connect(self.ui.comboBox_feature_x, QtCore.SIGNAL("currentIndexChanged(int)"), self.feature_x_changed)
         QtCore.QObject.connect(self.ui.comboBox_feature_y_chan, QtCore.SIGNAL("currentIndexChanged(int)"), self.feature_channel_y_changed)
+        QtCore.QObject.connect(self.ui.comboBox_feature_y, QtCore.SIGNAL("currentIndexChanged(int)"), self.feature_y_changed)
         QtCore.QObject.connect(self.ui.pushButton_next_projection, QtCore.SIGNAL("clicked()"), self.button_next_feature_click)
         QtCore.QObject.connect(self.ui.pushButton_previous_projection, QtCore.SIGNAL("clicked()"), self.button_prev_feature_click)
         QtCore.QObject.connect(self.ui.buttonGroup_scatter_plot_type, QtCore.SIGNAL("buttonClicked(int)"), self.updateFeaturePlot)
@@ -112,11 +115,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_proj.mpl_connect('button_release_event', self.onMouseRelease)
         self.mp_proj.mpl_connect('motion_notify_event', self.onMouseMove)        
         
-        #print self.mp_proj.paintEvent
         self._backup_mp_proj_paintEvent = self.mp_proj.paintEvent
-        #print self.mp_proj.paintEvent
-        #print self.mp_proj.paintEvent.func_code.co_varnames
-        #print self.mp_proj.paintEvent.func_code.co_argcount
         
         self.mp_proj.paintEvent = lambda e: self.mp_proj_onPaint(e)
                 
@@ -296,21 +295,89 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.add_cluster()
         
     def feature_channel_x_changed(self, index):
-        if index == -1: return
+        if index == -1 or self.setting_up_combos: return        
+        
         had_proj = self.redrawing_proj
         self.redrawing_proj = True
+        
+        # Get the valid y channel options based on px, cx, py
+        current_x = str(self.ui.comboBox_feature_x.currentText())
+        current_y = str(self.ui.comboBox_feature_y.currentText())
+        
+        valid_y = self.spikeset.featureByName(current_x).valid_y_features(int(self.ui.comboBox_feature_x_chan.currentText())-1)
+        
+        valid_y_chans = [chans for (name, chans) in valid_y if name == current_y][0]
+        
         # Set the valid projections for y
         current = self.ui.comboBox_feature_y_chan.currentText()
         if current == '': current = 0
         else: current = int(current)        
-        self.ui.comboBox_feature_y_chan.clear()
-        for i in range(index+2, self.current_feature.channels+1):
-            self.ui.comboBox_feature_y_chan.addItem(str(i))
-            if i == current:
-                self.ui.comboBox_feature_y_chan.setCurrentIndex(i - index-2)
+        
+        # y_chans is None if it should be all channels for a different feature type, since we have no way of knowing how many there will be apriori, we pass none
+        if valid_y_chans == None:
+            valid_y_chans = range(0, self.spikeset.featureByName(current_y).channels)
+        
+        self.ui.comboBox_feature_y_chan.clear()        
+        for i in valid_y_chans:
+            self.ui.comboBox_feature_y_chan.addItem(str(i+1))
+            #if i + 1 == current:
+            #    self.ui.comboBox_feature_y_chan.setCurrentIndex(i - index-1)
+        #self.ui.comboBox_feature_y_chan.setCurrentIndex(0)
         self.prof_limits_reference = None
+
         if not had_proj: self.redrawing_proj = False
         self.updateFeaturePlot()
+        
+    def feature_x_changed(self, index):
+        if index == -1: return        
+        
+        self.setting_up_combos = True
+        
+        # Set the options in the y feature box accordingly
+        current_x = str(self.ui.comboBox_feature_x.currentText())
+        valid_x = self.spikeset.featureByName(current_x).valid_x_features()        
+
+        # Possible x channels
+        self.ui.comboBox_feature_x_chan.clear();
+        for i in valid_x: 
+            self.ui.comboBox_feature_x_chan.addItem(str(i+1))
+
+        # Possible y features
+        valid_y = self.spikeset.featureByName(current_x).valid_y_features(0) # is always going to be 0 first
+        self.ui.comboBox_feature_y.clear()
+        for (name, chans) in valid_y:
+            self.ui.comboBox_feature_y.addItem(name)
+            
+        self.setting_up_combos = False
+        self.feature_y_changed(0)
+            
+    def feature_y_changed(self, index):
+        if index == -1: return                
+        
+        # Set the options in the y channel box accordingly
+        current_x = str(self.ui.comboBox_feature_x.currentText())
+        current_y = str(self.ui.comboBox_feature_y.currentText())
+        
+        # If x and y features are the same, remove the maximal channel number
+        chans = self.spikeset.featureByName(current_x).channels
+        index = self.ui.comboBox_feature_x_chan.findText(str(chans))
+        if current_x == current_y and index >= 0:
+            if self.ui.comboBox_feature_x_chan.currentText() == str(chans):
+                self.ui.comboBox_feature_x_chan.setCurrentIndex(chans-2)
+            self.ui.comboBox_feature_x_chan.removeItem(index)
+        if current_x != current_y and index == -1: # If they're not the same we might want it back in
+            self.ui.comboBox_feature_x_chan.insertItem(chans-1, str(chans))
+        
+        
+        valid_y = self.spikeset.featureByName(current_x).valid_y_features(int(self.ui.comboBox_feature_x_chan.currentText())-1)        
+        valid_y_chans = [chans for (name, chans) in valid_y if name == current_y][0]
+        # y_chans is None if it should be all channels for a different feature type, since we have no way of knowing how many there will be apriori, we pass none
+        if valid_y_chans == None:
+            valid_y_chans = range(0, self.spikeset.featureByName(current_y).channels)        
+
+        self.ui.comboBox_feature_y_chan.clear()        
+        for i in valid_y_chans:
+            self.ui.comboBox_feature_y_chan.addItem(str(i+1))
                 
     def feature_channel_y_changed(self, index):
         if index == -1: return
@@ -375,13 +442,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.spikeset = spikeset.loadNtt(fname)
         t2 = time.clock()
         print 'Loaded', self.spikeset.N, 'spikes in ', (t2-t1), 'seconds'
-        self.current_feature = features.Feature_Peak(self.spikeset)
+        self.current_feature = self.spikeset.features[0]
 
         self.redrawing_proj = True
 
         # Set the combo boxes to the current feature for now
-        self.ui.comboBox_feature_x.clear();
-        self.ui.comboBox_feature_x.addItem(self.current_feature.name)
+        self.ui.comboBox_feature_x.clear();        
+        for name in self.spikeset.featureNames():
+            self.ui.comboBox_feature_x.addItem(name)
         self.ui.comboBox_feature_y.clear();
         self.ui.comboBox_feature_y.addItem(self.current_feature.name)
 
@@ -405,9 +473,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
         fname = QtGui.QFileDialog.getOpenFileName(self, 'Open ntt file', filter='*.ntt')
         if fname:
             self.load_ntt(fname)
-            (root, ext) = os.path.splitext(str(fname))
+            (root, ext) = os.path.splitext(str(fname))            
             boundfilename = root + os.extsep + 'bounds'
-            self.importBounds(boundfilename)
+            if os.path.exists(boundfilename):
+                print "Found boundary file", boundfilename
+                self.importBounds(boundfilename)
         
     def updateFeaturePlot(self):
         if self.current_feature == None: return
@@ -416,10 +486,16 @@ class PyClustMainWindow(QtGui.QMainWindow):
         proj_x = int(self.ui.comboBox_feature_x_chan.currentText())-1
         proj_y = int(self.ui.comboBox_feature_y_chan.currentText())-1
 
+        feature_x = self.spikeset.featureByName(self.ui.comboBox_feature_x.currentText())
+        feature_y = self.spikeset.featureByName(self.ui.comboBox_feature_y.currentText())
+
+        if feature_x == None or feature_y == None:
+            return
+
         self.ui.mplwidget_projection.axes.hold(False)
         
         if self.prof_limits_reference == None:
-            temp = ([np.min(self.current_feature.data[:,proj_x]), np.max(self.current_feature.data[:,proj_x])], [np.min(self.current_feature.data[:,proj_y]), np.max(self.current_feature.data[:,proj_y])])
+            temp = ([np.min(feature_x.data[:,proj_x]), np.max(feature_x.data[:,proj_x])], [np.min(feature_y.data[:,proj_y]), np.max(feature_y.data[:,proj_y])])
             w_x = (temp[0][1] - temp[0][0]) * 0.05
             w_y = (temp[1][1] - temp[1][0]) * 0.05
             self.prof_limits_reference = ([temp[0][0] - w_x, temp[0][1] + w_x], [temp[1][0] - w_y, temp[1][1] + w_y])
@@ -438,19 +514,19 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 if self.ui.checkBox_show_unclustered_exclusive.isChecked():
                     for cluster in self.clusters:
                         w[cluster.member] = False
-                self.ui.mplwidget_projection.axes.plot(self.current_feature.data[w,proj_x], self.current_feature.data[w,proj_y], linestyle='None', marker='.', markersize=int(self.ui.spinBox_markerSize.text()), markerfacecolor='k', markeredgecolor='k')
+                self.ui.mplwidget_projection.axes.plot(feature_x.data[w,proj_x], feature_y.data[w,proj_y], linestyle='None', marker='.', markersize=int(self.ui.spinBox_markerSize.text()), markerfacecolor='k', markeredgecolor='k')
                 self.ui.mplwidget_projection.axes.hold(True)
             
             # Iterate over clusters
             for cluster in self.clusters:
                 if not cluster.check.isChecked(): continue
                 col = map(lambda s: s / 255.0, cluster.color)
-                self.mp_proj.axes.plot(self.current_feature.data[cluster.member,proj_x], self.current_feature.data[cluster.member,proj_y], marker='.', markersize=int(self.ui.spinBox_markerSize.text()), markerfacecolor=col, markeredgecolor=col, linestyle='None')
+                self.mp_proj.axes.plot(feature_x.data[cluster.member,proj_x], feature_y.data[cluster.member,proj_y], marker='.', markersize=int(self.ui.spinBox_markerSize.text()), markerfacecolor=col, markeredgecolor=col, linestyle='None')
                 self.ui.mplwidget_projection.axes.hold(True)
                 
                 # Plot refractory spikes
                 if self.ui.checkBox_refractory.isChecked():
-                    self.mp_proj.axes.plot(self.current_feature.data[cluster.refractory,proj_x], self.current_feature.data[cluster.refractory,proj_y], marker='o', markersize=5, markerfacecolor='k', markeredgecolor='k', linestyle='None')
+                    self.mp_proj.axes.plot(feature_x.data[cluster.refractory,proj_x], feature_y.data[cluster.refractory,proj_y], marker='o', markersize=5, markerfacecolor='k', markeredgecolor='k', linestyle='None')
                 
         # Do a density plot
         else:            
@@ -468,7 +544,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 
             bins_x = np.linspace(self.prof_limits[0][0], self.prof_limits[0][1], 100)
             bins_y = np.linspace(self.prof_limits[1][0], self.prof_limits[1][1], 100)
-            count = np.histogram2d(self.current_feature.data[w,proj_x], self.current_feature.data[w,proj_y], [bins_x, bins_y])[0]
+            count = np.histogram2d(feature_x.data[w,proj_x], feature_y.data[w,proj_y], [bins_x, bins_y])[0]
             
             if self.ui.radioButton_density.isChecked():
                 self.mp_proj.axes.pcolor(bins_x, bins_y, np.transpose(count))
@@ -481,7 +557,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 for cluster in self.clusters:
                     if not cluster.check.isChecked(): continue
                     # Plot refractory spikes
-                    self.mp_proj.axes.plot(self.current_feature.data[cluster.refractory,proj_x], self.current_feature.data[cluster.refractory,proj_y], marker='D', markersize=3, markerfacecolor='w', markeredgecolor='w', linestyle='None')                
+                    self.mp_proj.axes.plot(feature_x.data[cluster.refractory,proj_x], feature_y.data[cluster.refractory,proj_y], marker='D', markersize=3, markerfacecolor='w', markeredgecolor='w', linestyle='None')                
                 
         self.mp_proj.axes.set_xlim(self.prof_limits[0])
         self.mp_proj.axes.set_ylim(self.prof_limits[1])
@@ -507,7 +583,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.redrawing_proj = False
         
     def updateClusterDetailPlots(self):               
-        if self.current_feature == None: return
+        if self.spikeset == None: return
         
         if self.activeClusterRadioButton():
             w = self.activeClusterRadioButton().cluster_reference.member
@@ -682,8 +758,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             filename = QtGui.QFileDialog.getOpenFileName(self, 'Open ntt file', filter='*.bounds')
             
         if filename:
-            if os.path.exists(filename):
-                print "Found bound file", filename, ", importing."
+            if os.path.exists(filename):                
                 infile = open(filename, 'rb')
                 saved_bounds = pickle.load(infile)
                 infile.close()
@@ -726,6 +801,6 @@ if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     myapp = PyClustMainWindow()
     myapp.show()
-    #myapp.load_ntt('TT2_neo.ntt')
+    #myapp.load_ntt('Sample2.ntt')
     sys.exit(app.exec_())    
     

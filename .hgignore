@@ -6,3 +6,5 @@ glob:*.fd
 glob:*.m
 glob:*.bounds
 glob:*.cluster
+glob:build/*
+glob:dist/*
