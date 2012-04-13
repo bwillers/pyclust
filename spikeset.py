@@ -5,6 +5,7 @@ Created on Fri Mar 30 04:18:30 2012
 @author: Bernard
 """
 
+import scipy.special as spspec
 import numpy as np
 import random
 import matplotlib.nxutils as nx
@@ -95,6 +96,9 @@ class Cluster:
         self.color = (random.randrange(100, 200), random.randrange(100,200), random.randrange(100,200))
         self.member = np.array([False] * spikeset.N)
         self.bounds = []
+        self.wave_bounds = []
+        self.add_bounds = []
+        self.del_bounds = []
         self.isi = []
         self.refractory = np.array([False] * spikeset.N)
         self.stats = {}
@@ -108,24 +112,45 @@ class Cluster:
         self.removeBound(bound[0], bound[1], bound[2], bound[3])
         self.bounds.append(bound)
         
-    def getBoundPolygon(self, feature_name_x, feature_chan_x, feature_name_y, feature_chan_y):        
+    def getBoundPolygon(self, feature_name_x, feature_chan_x, feature_name_y, feature_chan_y, boundtype = 'limits'):
         f = lambda bound: (bound[0] == feature_name_x) and (bound[1] == feature_chan_x) and (bound[2] == feature_name_y) and (bound[3] == feature_chan_y)
-        temp = [bound[4] for bound in self.bounds if f(bound)]
+        if boundtype == 'add':
+            temp = [bound[4] for bound in self.add_bounds if f(bound)]
+        elif boundtype == 'del':
+            temp = [bound[4] for bound in self.del_bounds if f(bound)]
+        elif boundtype == 'limits':
+            temp = [bound[4] for bound in self.bounds if f(bound)]
+        
         if temp: 
-            return temp[0]
+            return temp
         return None
         
-    def removeBound(self, feature_name_x, feature_chan_x, feature_name_y, feature_chan_y):
-        f = lambda bound: (bound[0] == feature_name_x) and (bound[1] == feature_chan_x) and (bound[2] == feature_name_y) and (bound[3] == feature_chan_y)        
-        self.bounds = [bound for bound in self.bounds if not f(bound)]
+    def removeBound(self, feature_name_x, feature_chan_x, feature_name_y, feature_chan_y, boundtype = 'limits'):
+        f = lambda bound: (bound[0] == feature_name_x) and (bound[1] == feature_chan_x) and (bound[2] == feature_name_y) and (bound[3] == feature_chan_y)
+        if boundtype == 'add':
+            self.add_bounds = [bound for bound in self.add_bounds if not f(bound)]
+        elif boundtype == 'del':
+            self.del_bounds = [bound for bound in self.del_bounds if not f(bound)]
+        elif boundtype == 'limits':
+            self.bounds = [bound for bound in self.bounds if not f(bound)]
         
     def calculateMembership(self, spikeset):
-        if not self.bounds:
+        if (not self.bounds) and (not self.add_bounds):
             self.member = np.array([False] * spikeset.N)
             self.isi = []
             self.refractory = np.array([False] * spikeset.N)
         else:
-            self.member = np.array([True] * spikeset.N) # start with everything and cut it down
+            if self.add_bounds:
+                self.member = np.array([False] * spikeset.N) # if we have additive boundaries, use those
+                for bound in self.add_bounds:
+                    px = [feature.data[:, bound[1]] for feature in spikeset.features if feature.name == bound[0]][0]
+                    py = [feature.data[:, bound[3]] for feature in spikeset.features if feature.name == bound[2]][0]
+        
+                    data = np.column_stack((px,py))
+               
+                    self.member = np.logical_or(self.member, nx.points_inside_poly(data, bound[4]))                
+            else:
+                self.member = np.array([True] * spikeset.N) # start with everything and cut it down
             for bound in self.bounds:            
                 px = [feature.data[:, bound[1]] for feature in spikeset.features if feature.name == bound[0]][0]
                 py = [feature.data[:, bound[3]] for feature in spikeset.features if feature.name == bound[2]][0]
@@ -133,6 +158,11 @@ class Cluster:
                 data = np.column_stack((px,py))
            
                 self.member = np.logical_and(self.member, nx.points_inside_poly(data, bound[4]))
+                
+            for (chan, sample, lower_bound, upper_bound) in self.wave_bounds:
+                w = np.logical_and(spikeset.spikes[:, sample, chan] >= lower_bound, spikeset.spikes[:, sample, chan] <= upper_bound)
+                self.member = np.logical_and(self.member, w)
+                
                 
             t = spikeset.time[self.member]
             self.refr_period = 2
@@ -143,15 +173,6 @@ class Cluster:
             #ref = np.logical_and(self.isi < self.refr_period, self.isi> 0.8)
             ref = self.isi < self.refr_period
             self.refractory[self.member] = np.logical_or(np.append(ref, False), np.append(False, ref))
-            
-            #if np.sum(self.refractory) == 2:
-            #    p = Feature_Peak(spikeset).data
-            #    print p[self.refractory,:]
-            #    print self.isi[self.isi < self.refr_period]
-            #print 'spikes flagged as refractory', np.sum(self.refractory)
-            
-            #self.refractory[self.member] = np.logical_and(self.isi < self.refr_period, self.isi > 0.9)
-            #self.refractory[self.member] = self.isi < self.refr_period
             
             # stats            
             self.stats['num_spikes'] = np.sum(self.member)
@@ -179,11 +200,14 @@ class Cluster:
                 if self.stats['num_spikes']*2 > spikeset.N:
                     self.stats['isolation'] = np.NAN
                 else:
-                    cvi= np.linalg.inv(np.cov(np.transpose(p[self.member,:])))
-                    u = p-np.mean(p[self.member,:], axis=0)
-                    m = np.sum(np.dot(u, cvi) * u, axis=1)
-                    m = np.sort(m)
-                    self.stats['isolation'] = m[self.stats['num_spikes']*2-1]
+                    try:
+                        cvi= np.linalg.inv(np.cov(np.transpose(p[self.member,:])))
+                        u = p-np.mean(p[self.member,:], axis=0)
+                        m = np.sum(np.dot(u, cvi) * u, axis=1)
+                        m = np.sort(m)
+                        self.stats['isolation'] = m[self.stats['num_spikes']*2-1]
+                    except Exception:
+                        self.stats['isolation'] = np.NAN
 
                 chan = np.round(np.mean(np.argmax(p[self.member,:], axis=1)))
                 delta = np.diff(p[self.member, chan])
@@ -193,22 +217,39 @@ class Cluster:
                     self.stats['csi'] = 100.0 * (np.sum(delta <= 0) - np.sum(delta > 0)) / np.size(delta,0)
                 else:
                     self.stats['csi'] = np.NAN
+                    
+                # Work on this as a separate tool, too slow every click # Compute mahal distance for all waveforms in cluster
+#                try:
+#                    temp = np.concatenate([spikeset.spikes[self.member,:,i] for i in range(np.size(spikeset.spikes,2))], axis = 1)
+#                    cvi= np.linalg.inv(np.cov(np.transpose(temp)))
+#                    u = temp-np.mean(temp, axis=0)
+#                    m = np.sum(np.dot(u, cvi) * u, axis=1)
+#                    self.mahal = m
+#                except Exception:
+#                    self.mahal = np.NAN
+                
+                
 
+#from matplotlib import pyplot
 
+def chi2f(x,k):
+    return 1.0 / (np.power(2.0, k/2.0) * spspec.gamma(k/2.0)) * np.power(x, k/2.0 - 1) * np.exp(- x / 2.0)
 
 if __name__ == "__main__":
 
     print "Loading ntt"
-    spikeset = loadNtt('Sample2.ntt')
+    #spikeset = loadNtt('Sample2.ntt')
+    #clust = Cluster(spikeset)
+    # (feature_name_x, feature_chan_x, feature_name_Y, feature_chan_y, polygon_points, extra_data)
+    #clust.addBound(('Peak', 0, 'Peak', 1, [[50,50], [50,100], [100, 100], [100, 50]]))
+    #clust.calculateMembership(spikeset)
     
-    print spikeset.featureNames()
-    
-    print spikeset.features[0].valid_y_features(1)
-    
-    print spikeset.featureByName('Peak')
-    print spikeset.featureByName('Peak').valid_x_features()
-    
-    print spikeset.featureByName('Time')
-    print spikeset.featureByName('Time').valid_x_features()
+    #pyplot.hist(np.sqrt(clust.mahal))
 
-    del spikeset
+    x = np.array(range(1000))
+    print chi2f(x, 127)
+    
+    
+    
+
+    #del spikeset

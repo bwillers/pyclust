@@ -12,6 +12,7 @@ from PyQt4 import QtCore, QtGui
 
 import numpy as np
 import scipy.io as sio
+import scipy.stats
 import matplotlib as mpl
 from matplotlibwidget import MatplotlibWidget
 
@@ -22,6 +23,15 @@ import spikeset
 import features
 
 class PyClustMainWindow(QtGui.QMainWindow):    
+    
+    def switch_to_wavecutter(self):
+        self.ui.stackedWidget.setCurrentIndex(1)
+        self.updateWavecutterPlot()
+        
+    def switch_to_maindisplay(self):
+        self.ui.stackedWidget.setCurrentIndex(0)
+        self.updateFeaturePlot()
+    
     def __init__(self, parent=None):        
         QtGui.QWidget.__init__(self, parent)
         
@@ -59,6 +69,19 @@ class PyClustMainWindow(QtGui.QMainWindow):
         QtCore.QObject.connect(self.ui.pushButton_deleteLimit, QtCore.SIGNAL("clicked()"), self.button_delete_limit_click)
         QtCore.QObject.connect(self.ui.checkBox_refractory, QtCore.SIGNAL("stateChanged(int)"), self.updateFeaturePlot)
                 
+        QtCore.QObject.connect(self.ui.pushButton_wavecutter_done, QtCore.SIGNAL("clicked()"), self.switch_to_maindisplay )
+        QtCore.QObject.connect(self.ui.pushButton_wavecutter_start, QtCore.SIGNAL("clicked()"), self.switch_to_wavecutter)
+        
+        QtCore.QObject.connect(self.ui.pushButton_wavecutter_redraw, QtCore.SIGNAL("clicked()"), self.updateWavecutterPlot)
+        QtCore.QObject.connect(self.ui.lineEdit_wavecutter_count, QtCore.SIGNAL("editingFinished()"), self.updateWavecutterPlot)
+        QtCore.QObject.connect(self.ui.checkBox_wavecutter_refractory, QtCore.SIGNAL("stateChanged(int)"), self.updateWavecutterPlot)
+        QtCore.QObject.connect(self.ui.spinBox_wavecutter_channel, QtCore.SIGNAL("valueChanged(int)"), self.updateWavecutterPlot)
+        QtCore.QObject.connect(self.ui.pushButton_wavecutter_add_limit, QtCore.SIGNAL("clicked()"), self.wavecutter_add_limit)
+        QtCore.QObject.connect(self.ui.pushButton_wavecutter_remove_limit, QtCore.SIGNAL("clicked()"), self.wavecutter_remove_limits)
+        
+        QtCore.QObject.connect(self.ui.pushButton_hide_all, QtCore.SIGNAL("clicked()"), lambda: self.hide_show_all_clusters(True))
+        QtCore.QObject.connect(self.ui.pushButton_show_all, QtCore.SIGNAL("clicked()"), lambda: self.hide_show_all_clusters(False))
+            
         # Set up the cluster list area
         self.labels_container = QtGui.QWidget()
         self.ui.scrollArea_cluster_list.setWidget(self.labels_container)
@@ -97,9 +120,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_wave = self.ui.mplwidget_waveform
         self.mp_isi = self.ui.mplwidget_isi
         self.mp_proj = self.ui.mplwidget_projection
+        self.mp_wavecutter = self.ui.mplwidget_wavecutter
+        self.mp_outlier = self.ui.mplwidget_outliers
                 
         pal = self.palette().window().color()
         bgcolor = (pal.red() / 255.0, pal.blue() / 255.0, pal.green() / 255.0)
+        
+        # Set the window background color on plots        
         
         self.mp_wave.figure.clear()
         self.mp_wave.figure.set_facecolor(bgcolor)
@@ -110,10 +137,21 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_proj.figure.clear()
         self.mp_proj.figure.set_facecolor(bgcolor)
         
+        self.mp_wavecutter.figure.clear()
+        self.mp_wavecutter.figure.set_facecolor(bgcolor)
+        
+        self.mp_outlier.figure.clear()
+        self.mp_outlier.figure.set_facecolor(bgcolor)
+        
         self.zoom_active = False
         self.mp_proj.mpl_connect('button_press_event', self.onMousePress)
         self.mp_proj.mpl_connect('button_release_event', self.onMouseRelease)
         self.mp_proj.mpl_connect('motion_notify_event', self.onMouseMove)        
+        
+        self.wave_limit_mode = False
+        self.mp_wavecutter.mpl_connect('button_press_event', self.wavecutter_onMousePress)
+        self.mp_wavecutter.mpl_connect('button_release_event', self.wavecutter_onMouseRelease)
+        self.mp_wavecutter.mpl_connect('motion_notify_event', self.wavecutter_onMouseMove)   
         
         self._backup_mp_proj_paintEvent = self.mp_proj.paintEvent
         
@@ -161,6 +199,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_isi.axes.set_xticks([1e1, 1e2, 1e3, 1e4])
         self.mp_isi.draw()
         
+        # Set up the drift axes
+        self.mp_outlier.figure.clear()
+        self.mp_outlier.figure.subplots_adjust(hspace=0.0001, wspace=0.0001, bottom=0, top=1, left=0.15, right=1)
+        self.mp_outlier.axes = self.mp_outlier.figure.add_subplot(1,1,1)                
+        self.mp_outlier.axes.set_xticks([])
+        self.mp_outlier.axes.set_yticks([])
+        self.mp_outlier.draw()
+        
         # Set up the feature axes
         self.mp_proj.figure.clear()
         self.mp_proj.figure.subplots_adjust(hspace=0.0001, wspace=0.0001, bottom=0.075, top=1, left=0.075, right=1)
@@ -175,14 +221,60 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.label_refr_count.setText('')
         self.ui.label_refr_fp.setText('')
         self.ui.label_refr_frac.setText('')
-        self.ui.label_isolation.setText('')        
+        self.ui.label_isolation.setText('')    
         
+        # Set up the waveform axes
+        self.mp_wavecutter.figure.clear()
+        self.mp_wavecutter.figure.subplots_adjust(hspace=0.0001, wspace=0.0001, bottom=0, top=1, left=0.0, right=1)                
+        self.mp_wavecutter.axes = self.mp_wavecutter.figure.add_subplot(1,1,1)
+        self.mp_wavecutter.axes.hold(False)
+        self.mp_wavecutter.axes.set_xticks([])
+        self.mp_wavecutter.axes.set_yticks([])
+        self.mp_wavecutter.draw()
+        
+        self.ui.stackedWidget.setCurrentIndex(0)
+        
+        layout = self.labels_container.layout()
+        
+        hlayout = QtGui.QHBoxLayout()                    
+        
+        self.checkBox_junk = QtGui.QCheckBox()
+        self.checkBox_junk.setChecked(True)
+        QtCore.QObject.connect(self.checkBox_junk, QtCore.SIGNAL("stateChanged(int)"), self.updateFeaturePlot)
+        
+        self.radioButton_junk = QtGui.QRadioButton()
+        self.radioButton_junk.setChecked(True)
+        spacer = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        
+        hlayout.addWidget(self.checkBox_junk)
+        hlayout.addItem(spacer)
+        hlayout.addWidget(self.radioButton_junk)
+        hlayout.setSizeConstraint(QtGui.QLayout.SetMaximumSize)
+        self.buttonGroup_cluster.addButton(self.radioButton_junk)
+        
+        label = QtGui.QLabel()
+        label.setText('Junk')
+
+        hlayout.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+                
+        hlayout.addWidget(label)        
+        layout.insertLayout(layout.count()-1, hlayout)
+        
+    def hide_show_all_clusters(self, hidden):
+        for cluster in self.clusters:
+            if cluster.radio == self.activeClusterRadioButton():
+                continue
+            cluster.check.setChecked(not hidden)
+            if hidden:
+                self.checkBox_junk.setChecked(False) # dont show this on show all
+            self.ui.checkBox_show_unclustered.setChecked(not hidden)
         
     def update_active_cluster(self):
-        self.ui.pushButton_addLimit.setEnabled(True)
         self.updateClusterDetailPlots()
         for cluster in self.clusters:
             cluster.check.setEnabled(True)
+        if self.activeClusterRadioButton() == self.radioButton_junk:
+            return
         self.activeClusterRadioButton().cluster_reference.check.setEnabled(False)
         self.activeClusterRadioButton().cluster_reference.check.setChecked(True)
         
@@ -238,7 +330,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         
     def delete_cluster(self, cluster = None):
         if cluster == None:
-            if self.activeClusterRadioButton() == 0: return
+            if (not self.activeClusterRadioButton()) or self.activeClusterRadioButton() == self.radioButton_junk: return
             cluster = self.activeClusterRadioButton().cluster_reference
             
         self.buttonGroup_cluster.removeButton(cluster.radio)
@@ -261,24 +353,30 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateFeaturePlot()
         self.updateClusterDetailPlots()
         
-        self.ui.pushButton_addLimit.setEnabled(False)
-        
         self.unsaved = True
         
     def button_add_limit_click(self):
-        self.limit_mode = True
-        self.ui.pushButton_addLimit.setEnabled(False)
-        self.limit_data = []
-        self.unsaved = True
+        if not self.spikeset: return
+        
+        if self.activeClusterRadioButton():
+            self.limit_mode = True
+            self.limit_data = []
+            self.unsaved = True
         
     def button_delete_limit_click(self):
+        if not self.spikeset: return
+        
         feature_x = self.ui.comboBox_feature_x.currentText()
         feature_y = self.ui.comboBox_feature_y.currentText()
         feature_x_chan = int(self.ui.comboBox_feature_x_chan.currentText())-1
         feature_y_chan = int(self.ui.comboBox_feature_y_chan.currentText())-1
         if self.activeClusterRadioButton():
             cluster= self.activeClusterRadioButton().cluster_reference
-            cluster.removeBound(feature_x, feature_x_chan, feature_y, feature_y_chan)
+            
+            if cluster != self.junk_cluster:
+                cluster.removeBound(feature_x, feature_x_chan, feature_y, feature_y_chan)
+            else:
+                cluster.removeBound(feature_x, feature_x_chan, feature_y, feature_y_chan, 'add')
             self.activeClusterRadioButton().cluster_reference.calculateMembership(self.spikeset)
             self.update_active_cluster()
             self.updateFeaturePlot()
@@ -442,32 +540,35 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.spikeset = spikeset.loadNtt(fname)
         t2 = time.clock()
         print 'Loaded', self.spikeset.N, 'spikes in ', (t2-t1), 'seconds'
-        self.current_feature = self.spikeset.features[0]
+
+        self.t_bins = np.arange(self.spikeset.time[0], self.spikeset.time[-1], 60e6)
+        self.t_bin_centers= ((self.t_bins[0:-1] + self.t_bins[1:])/2 - self.spikeset.time[0])/60e6
 
         self.redrawing_proj = True
 
         # Set the combo boxes to the current feature for now
+        
         self.ui.comboBox_feature_x.clear();        
         for name in self.spikeset.featureNames():
             self.ui.comboBox_feature_x.addItem(name)
-        self.ui.comboBox_feature_y.clear();
-        self.ui.comboBox_feature_y.addItem(self.current_feature.name)
-
-        # Set the channel combo box options
-        self.ui.comboBox_feature_x_chan.clear();
-        self.ui.comboBox_feature_y_chan.clear();
-
-        for i in range(1, self.current_feature.channels):
-            self.ui.comboBox_feature_x_chan.addItem(str(i))
             
         # Reset the limits
         self.prof_limits_reference = None
+        
+        self.junk_cluster = spikeset.Cluster(self.spikeset)
+        self.junk_cluster.color = (255,0,0)
+        self.junk_cluster.check = self.checkBox_junk
+        self.checkBox_junk.setChecked(True)
+        self.radioButton_junk.cluster_reference = self.junk_cluster
+        
 
         self.redrawing_proj = False
         self.updateFeaturePlot()
         self.updateClusterDetailPlots()
         
         self.current_filename = str(fname)
+        
+        self.ui.stackedWidget.setCurrentIndex(0)
         
     def button_load_click(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, 'Open ntt file', filter='*.ntt')
@@ -480,8 +581,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.importBounds(boundfilename)
         
     def updateFeaturePlot(self):
-        if self.current_feature == None: return
         if self.redrawing_proj: return
+        if not self.spikeset: return
 
         proj_x = int(self.ui.comboBox_feature_x_chan.currentText())-1
         proj_y = int(self.ui.comboBox_feature_y_chan.currentText())-1
@@ -492,16 +593,17 @@ class PyClustMainWindow(QtGui.QMainWindow):
         if feature_x == None or feature_y == None:
             return
 
-        self.ui.mplwidget_projection.axes.hold(False)
+        self.mp_proj.axes.hold(False)
         
         if self.prof_limits_reference == None:
-            temp = ([np.min(feature_x.data[:,proj_x]), np.max(feature_x.data[:,proj_x])], [np.min(feature_y.data[:,proj_y]), np.max(feature_y.data[:,proj_y])])
+            w = np.array([True] * self.spikeset.N)
+            if not self.checkBox_junk.isChecked():
+                w[self.junk_cluster.member] = False
+            temp = ([np.min(feature_x.data[w,proj_x]), np.max(feature_x.data[w,proj_x])], [np.min(feature_y.data[w,proj_y]), np.max(feature_y.data[w,proj_y])])
             w_x = (temp[0][1] - temp[0][0]) * 0.05
             w_y = (temp[1][1] - temp[1][0]) * 0.05
             self.prof_limits_reference = ([temp[0][0] - w_x, temp[0][1] + w_x], [temp[1][0] - w_y, temp[1][1] + w_y])
             self.prof_limits = self.prof_limits_reference
-            
-        #in_bounds = np.logical_and(np.logical_and(self.current_feature.data[:,proj_y] >= self.prof_limits[1][0], self.current_feature.data[:,proj_y] <= self.prof_limits[1][1]), np.logical_and(self.current_feature.data[:,proj_x] >= self.prof_limits[0][0], self.current_feature.data[:,proj_x] <= self.prof_limits[0][1]))
 
         # Do a scatter plot
         if self.ui.radioButton_scatter.isChecked():
@@ -509,18 +611,20 @@ class PyClustMainWindow(QtGui.QMainWindow):
             #Plot the unclustered spikes
             if self.ui.checkBox_show_unclustered.isChecked():
                 w = np.array([True] * self.spikeset.N)
-                #w[np.logical_not(in_bounds)] = False
+                
                 
                 if self.ui.checkBox_show_unclustered_exclusive.isChecked():
-                    for cluster in self.clusters:
+                    for cluster in self.clusters + [self.junk_cluster]:
                         w[cluster.member] = False
+                        
                 self.ui.mplwidget_projection.axes.plot(feature_x.data[w,proj_x], feature_y.data[w,proj_y], linestyle='None', marker='.', markersize=int(self.ui.spinBox_markerSize.text()), markerfacecolor='k', markeredgecolor='k')
                 self.ui.mplwidget_projection.axes.hold(True)
             
             # Iterate over clusters
-            for cluster in self.clusters:
+            for cluster in self.clusters + [self.junk_cluster]:
                 if not cluster.check.isChecked(): continue
                 col = map(lambda s: s / 255.0, cluster.color)
+                # Plot the cluster spikes
                 self.mp_proj.axes.plot(feature_x.data[cluster.member,proj_x], feature_y.data[cluster.member,proj_y], marker='.', markersize=int(self.ui.spinBox_markerSize.text()), markerfacecolor=col, markeredgecolor=col, linestyle='None')
                 self.ui.mplwidget_projection.axes.hold(True)
                 
@@ -534,9 +638,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if self.ui.checkBox_show_unclustered.isChecked():
                 w = np.array([True] * self.spikeset.N)
                 if self.ui.checkBox_show_unclustered_exclusive.isChecked():
-                    for cluster in self.clusters:
+                    for cluster in self.clusters + [self.junk_cluster]:
                         w[cluster.member] = False
-            for cluster in [cluster for cluster in self.clusters if cluster.check.isChecked()]:
+            for cluster in [cluster for cluster in self.clusters + [self.junk_cluster] if cluster.check.isChecked()]:
                 w[cluster.member] = True
                 
             if not np.any(w):
@@ -554,7 +658,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             # Iterate over clusters for refractory spikes
             if self.ui.checkBox_refractory.isChecked():
                 self.ui.mplwidget_projection.axes.hold(True)
-                for cluster in self.clusters:
+                for cluster in self.clusters + [self.junk_cluster]:
                     if not cluster.check.isChecked(): continue
                     # Plot refractory spikes
                     self.mp_proj.axes.plot(feature_x.data[cluster.refractory,proj_x], feature_y.data[cluster.refractory,proj_y], marker='D', markersize=3, markerfacecolor='w', markeredgecolor='w', linestyle='None')                
@@ -567,17 +671,28 @@ class PyClustMainWindow(QtGui.QMainWindow):
         feature_y = self.ui.comboBox_feature_y.currentText()
         feature_x_chan = int(self.ui.comboBox_feature_x_chan.currentText())-1
         feature_y_chan = int(self.ui.comboBox_feature_y_chan.currentText())-1        
-        for cluster in self.clusters:
+        for cluster in self.clusters + [self.junk_cluster]:
             if not cluster.check.isChecked(): continue
-            bound_poly = cluster.getBoundPolygon(feature_x, feature_x_chan, feature_y, feature_y_chan)
-            if not bound_poly == None:
-                col = map(lambda s: s / 255.0, cluster.color)
-                for i in range(np.size(bound_poly,0)):
-                    line = mpl.lines.Line2D(bound_poly[i:i+2,0], bound_poly[i:i+2,1], color=col, linestyle='-')
-                    self.mp_proj.axes.add_line(line)
-                line = mpl.lines.Line2D([bound_poly[0,0], bound_poly[-1,0]], [bound_poly[0,1], bound_poly[-1,1]], color=col, linestyle='-')
-                self.mp_proj.axes.add_line(line)
-                    #self.mp_proj.axes.line()
+        
+            # Limit boundaries with solid line        
+            bound_polys = cluster.getBoundPolygon(feature_x, feature_x_chan, feature_y, feature_y_chan)
+            if bound_polys:
+                for bound_poly in bound_polys:
+                    bound_poly = np.vstack((bound_poly, bound_poly[0,:]))
+                    col = map(lambda s: s / 255.0, cluster.color)
+                    for i in range(np.size(bound_poly,0)):
+                        line = mpl.lines.Line2D(bound_poly[i:i+2,0], bound_poly[i:i+2,1], color=col, linestyle='-')
+                        self.mp_proj.axes.add_line(line)
+                    
+            # Addition boundaries with dashed line
+            bound_polys = cluster.getBoundPolygon(feature_x, feature_x_chan, feature_y, feature_y_chan, 'add')
+            if bound_polys:
+                for bound_poly in bound_polys:
+                    bound_poly = np.vstack((bound_poly, bound_poly[0,:]))
+                    col = map(lambda s: s / 255.0, cluster.color)
+                    for i in range(np.size(bound_poly,0)):
+                        line = mpl.lines.Line2D(bound_poly[i:i+2,0], bound_poly[i:i+2,1], color=col, linestyle='--')
+                        self.mp_proj.axes.add_line(line)
                     
         self.mp_proj.draw()
         self.redrawing_proj = False
@@ -639,6 +754,70 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.label_refr_fp.setText('')
             self.ui.label_refr_frac.setText('')
             self.ui.label_isolation.setText('')
+            
+#        # Mahal histogram
+#        if N and cluster != self.junk_cluster:
+#            m1 = np.min(cluster.mahal)
+#            m2 = np.max(cluster.mahal)
+#            bins = np.logspace(np.log10(m1), np.log10(m2))
+#            centers = (bins[0:-1] + bins[1:])/2
+#            
+#            count = np.histogram(cluster.mahal, bins)[0]
+#            count = count.astype(float) / np.sum(count)
+#            
+#            self.mp_outlier.axes.hold(False)
+#            self.mp_outlier.axes.plot(centers, count)
+#            self.mp_outlier.axes.hold(True)
+#            
+#            m_ref = cluster.mahal[cluster.refractory[cluster.member]]
+#            if np.size(m_ref):
+#                count_ref = np.histogram(cluster.mahal[cluster.refractory[cluster.member]], bins)[0]
+#                count_ref = count_ref.astype(float) * np.max(count) / np.max(count_ref)
+#                self.mp_outlier.axes.plot(centers, count_ref, 'k')
+#                            
+#            chi = spikeset.chi2f(centers,127)
+#            chi = chi / np.sum(chi)
+#            
+#            self.mp_outlier.axes.plot(centers, chi, 'r--')
+#                
+#            self.mp_outlier.axes.set_xscale('log')
+#            self.mp_outlier.axes.set_xlim([m1,m2])
+#            
+#            endpoint = scipy.stats.chi2.ppf((float(cluster.stats['num_spikes']) - 1.0) / cluster.stats['num_spikes'], 127)            
+#            endpoint_line = mpl.lines.Line2D([endpoint, endpoint], self.mp_outlier.axes.get_ylim(), color='g', linestyle='--')
+#            self.mp_outlier.axes.add_line(endpoint_line)    
+#        else:
+#            self.mp_outlier.axes.cla()
+
+        # Drift plot
+        if N:
+            
+            t = self.spikeset.time[cluster.member]
+            p = self.spikeset.featureByName('Peak 6-11').data
+            p = p[cluster.member,:]
+            
+            # this is sort of hacky, wish i had histC
+            countsPerBin = np.histogram(t, self.t_bins)[0]
+            
+            P = np.zeros((np.size(self.t_bin_centers), np.size(p,1)))
+            for i in range(np.size(p, 1)):
+                P[:,i] = np.histogram(t, self.t_bins, weights=p[:,i])[0]
+                P[countsPerBin == 0,i] = np.NAN
+                P[countsPerBin != 0,i] = P[countsPerBin != 0,i] / countsPerBin[countsPerBin != 0]
+                            
+            self.mp_outlier.axes.hold(False)
+            self.mp_outlier.axes.plot(self.t_bin_centers, P)
+            ylim = self.mp_outlier.axes.get_ylim()
+            self.mp_outlier.axes.set_ylim([0, ylim[1]*1.25])
+            self.mp_outlier.axes.set_xticks([])
+        else:
+            self.mp_outlier.axes.cla()
+            self.mp_outlier.axes.set_yticks([])
+            self.mp_outlier.axes.set_xticks([])
+            
+        self.mp_outlier.draw()
+            
+        #self.mp_outlier.axes
         
     def onMousePress(self, event):
         if self.limit_mode: return
@@ -673,17 +852,23 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if self.limit_mode and not (event.xdata == None or event.ydata == None):
                 self.limit_data.append( (event.xdata, event.ydata, event.x, event.y) )
                 self.limit_mode = False
-                self.ui.pushButton_addLimit.setEnabled(True)
-                self.mp_proj.repaint()
+                #self.mp_proj.repaint()
+                
                 # create an array to describe the bound
                 temp = np.array([np.array([point[0], point[1]]) for point in self.limit_data])
                 feature_x = str(self.ui.comboBox_feature_x.currentText())
                 feature_y = str(self.ui.comboBox_feature_y.currentText())
                 feature_x_chan = int(self.ui.comboBox_feature_x_chan.currentText())-1
                 feature_y_chan = int(self.ui.comboBox_feature_y_chan.currentText())-1
+                
                 print "Adding boundary on", feature_x, feature_x_chan, feature_y, feature_y_chan
                 bound = (feature_x, feature_x_chan, feature_y, feature_y_chan, temp)
-                self.activeClusterRadioButton().cluster_reference.addBound(bound)
+                if self.activeClusterRadioButton().cluster_reference != self.junk_cluster:
+                    self.activeClusterRadioButton().cluster_reference.addBound(bound)
+                else:
+                    print "Junk cluster updated, resetting bounds"
+                    self.junk_cluster.add_bounds.append(bound)
+                    self.prof_limits_reference = None
                 self.activeClusterRadioButton().cluster_reference.calculateMembership(self.spikeset)
                 self.update_active_cluster()
                 self.updateFeaturePlot()
@@ -709,8 +894,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             y1 = height - event.y
             rect = [ int(val) for val in min(x0,x1), min(y0,y1), abs(x1-x0), abs(y1-y0)]
             self.mp_proj.drawRectangle(rect)
-
-        pass
     
     def mp_proj_onPaint(self, event):
         MatplotlibWidget.paintEvent(self.mp_proj, event)
@@ -733,7 +916,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             # Save the bounds to a format we can easily read back in later
             outfilename = root + os.extsep + 'bounds'
             outfile = open(outfilename, 'wb')            
-            save_bounds = [(cluster.color, cluster.bounds) for cluster in self.clusters ]
+            save_bounds = [(cluster.color, cluster.bounds, cluster.wave_bounds, cluster.add_bounds, cluster.del_bounds) for cluster in self.clusters ]
             pickle.dump(save_bounds, outfile)
             outfile.close()
             print "Saved bounds to", outfilename
@@ -764,9 +947,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 infile.close()
                 print "Found", len(saved_bounds), "bounds to import, creating clusters."
                 self.redrawing_details = True
-                for (col, bound) in saved_bounds:
+                for (col, bound, wave_bound, add_bound, del_bound) in saved_bounds:
                     clust = self.add_cluster(col)
                     clust.bounds = bound
+                    clust.wave_bounds = wave_bound
+                    clust.add_bounds = add_bound
+                    clust.del_bounds = del_bound
                     clust.calculateMembership(self.spikeset)
                 self.redrawing_details = False
                 self.updateClusterDetailPlots()
@@ -795,7 +981,128 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.save()
             if reply == QtGui.QMessageBox.No:
                 event.accept()
+                
+    def updateWavecutterPlot(self):               
+        if self.spikeset == None: return
+        if not self.activeClusterRadioButton(): return
         
+        self.wave_limit_mode = False
+        self.wave_limit_data = []
+        
+        w = self.activeClusterRadioButton().cluster_reference.member
+        cluster = self.activeClusterRadioButton().cluster_reference
+        
+        chan_no = int(self.ui.spinBox_wavecutter_channel.value()) - 1
+        
+        #print "Trying to plot channel", chan_no
+            
+        wf_perm = np.random.permutation(np.nonzero(w)[0])
+        num_wave = np.min([int(self.ui.lineEdit_wavecutter_count.text()), np.size(wf_perm)])
+        
+        #print "Trying to plot", num_wave, "waveforms"
+        
+        wf_perm = wf_perm[:num_wave]
+        
+        if not np.size(wf_perm): 
+            self.mp_wavecutter.axes.clear()
+            self.mp_wavecutter.draw()
+            return
+        
+        self.mp_wavecutter.axes.hold(False)
+        self.mp_wavecutter.axes.plot(np.transpose(self.spikeset.spikes[wf_perm,:,chan_no]), linewidth=0.5, color=(0.7, 0.7, 0.7))
+        
+        
+        if self.ui.checkBox_wavecutter_refractory.isChecked():
+            # Overlay refractory spikes
+            w = np.logical_and(cluster.refractory, cluster.member);
+            wf_perm = np.random.permutation(np.nonzero(w))
+            num_wave = np.min([int(self.ui.lineEdit_wavecutter_count.text()), np.size(wf_perm)])
+            
+            #print "Trying to plot", num_wave, "refractory waveforms"
+            
+            wf_perm = wf_perm[0, :num_wave]
+            if np.size(wf_perm):
+                self.mp_wavecutter.axes.hold(True)
+                self.mp_wavecutter.axes.plot(np.transpose(self.spikeset.spikes[wf_perm,:,chan_no]), color=(0.3, 0.3, 0.3))
+        
+        # Plot boundaries
+        if cluster.wave_bounds:
+            for (chan, sample, lower_bound, upper_bound) in cluster.wave_bounds:
+                if chan != chan_no: continue
+                line = mpl.lines.Line2D([sample, sample], [lower_bound, upper_bound], color=(1, 0, 0), linestyle='-', linewidth=4)
+                self.mp_wavecutter.axes.add_line(line)
+                
+        self.mp_wavecutter.axes.set_xticks([])
+        self.mp_wavecutter.axes.set_yticks([])
+        ylim = self.mp_wavecutter.axes.get_ylim()
+        ylim = np.max(np.abs(ylim))
+        self.mp_wavecutter.axes.set_ylim([-ylim, ylim])
+        
+        line = mpl.lines.Line2D(self.mp_wavecutter.axes.get_xlim(), [0, 0], color=(0, 0, 0), linestyle='-', linewidth=1)
+        self.mp_wavecutter.axes.add_line(line)
+                
+        
+        self.mp_wavecutter.axes.set_xlim([-0.25,31.25])
+        self.mp_wavecutter.draw()        
+
+    def wavecutter_onMousePress(self, event):
+        pass
+        
+    def wavecutter_onMouseRelease(self, event):
+        if not self.spikeset: return
+        if not self.activeClusterRadioButton(): return
+        
+        if event.button == 1 and not (event.xdata == None or event.ydata == None):
+            if self.wave_limit_mode:
+                if not self.wave_limit_data:
+                    self.wave_limit_data = (event.xdata, event.ydata, event.x, event.y)
+                else:
+                    self.wave_limit_mode = False
+                    chan_no = int(self.ui.spinBox_wavecutter_channel.value()) - 1
+                    bound = ( chan_no, int(np.round(self.wave_limit_data[0])), min(self.wave_limit_data[1], event.ydata), max(self.wave_limit_data[1], event.ydata) )
+                    
+                    self.wave_limit_data = []
+                    
+                    cluster = self.activeClusterRadioButton().cluster_reference
+                    cluster.wave_bounds.append(bound)
+                    
+                    self.activeClusterRadioButton().cluster_reference.calculateMembership(self.spikeset)
+                    self.updateClusterDetailPlots()
+                    self.updateWavecutterPlot()
+                    self.unsaved = True
+                    
+        if event.button == 3:
+            pass
+        
+    def wavecutter_onMouseMove(self, event):
+        if self.wave_limit_mode and self.wave_limit_data:
+            height = self.mp_wavecutter.figure.bbox.height
+            width = self.mp_wavecutter.figure.bbox.width
+            #x0 = self.wave_limit_data[2]
+            offset = width * 0.5 / 31.5
+            width = width - offset
+            x0 = np.round(self.wave_limit_data[0]) * width / 31.0 + offset;
+            y0 = height - self.wave_limit_data[3]
+            x1 = x0
+            y1 = height - event.y
+            rect = [ int(val) for val in min(x0,x1), min(y0,y1), abs(x1-x0), abs(y1-y0)]
+            self.mp_wavecutter.drawRectangle(rect)
+            
+    def wavecutter_remove_limits(self):
+        if not self.spikeset: return
+        if not self.activeClusterRadioButton(): return
+        
+        chan_no = int(self.ui.spinBox_wavecutter_channel.value()) - 1
+        cluster = self.activeClusterRadioButton().cluster_reference
+        cluster.wave_bounds = [bound for bound in cluster.wave_bounds if bound[0] != chan_no]
+        
+        cluster.calculateMembership(self.spikeset)
+        self.updateClusterDetailPlots()
+        self.updateWavecutterPlot()
+        self.unsaved = True
+        
+    def wavecutter_add_limit(self):
+        self.wave_limit_mode = True        
     
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)

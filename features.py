@@ -55,7 +55,7 @@ class Feature_Valley(Feature):
         Feature.__init__(self, 'Valley', spikeset)
         
     def calculate(self, spikeset):
-        return np.min(spikeset.spikes, axis=1)
+        return np.min(spikeset.spikes[:, spikeset.peak_index:,:], axis=1)
 
 class Feature_Energy(Feature):
     def __init__(self, spikeset):
