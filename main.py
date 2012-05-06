@@ -32,6 +32,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.stackedWidget.setCurrentIndex(0)
         self.updateFeaturePlot()
     
+    def poopy(self, x=None):
+        if x:
+            print x, 'is poopy'
+        else:
+            print 'poopy'
+        
+    
     def __init__(self, parent=None):        
         QtGui.QWidget.__init__(self, parent)
         
@@ -81,6 +88,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
         
         QtCore.QObject.connect(self.ui.pushButton_hide_all, QtCore.SIGNAL("clicked()"), lambda: self.hide_show_all_clusters(True))
         QtCore.QObject.connect(self.ui.pushButton_show_all, QtCore.SIGNAL("clicked()"), lambda: self.hide_show_all_clusters(False))
+        
+        
+        #QtCore.QObject.connect(self.ui.buttonGroup_trimmer.buttonReleased, self.ui.stackedWidget_trimmer.setCurrentIndex)
+        
+        QtCore.QObject.connect(self.ui.buttonGroup_trimmer, QtCore.SIGNAL("buttonClicked(int)"), lambda x: self.ui.stackedWidget_trimmer.setCurrentIndex(-x -2))
+        QtCore.QObject.connect(self.ui.stackedWidget_trimmer, QtCore.SIGNAL("currentChanged(int)"), lambda x: self.updateWavecutterPlot() if x == 0 else self.updateOutlierPlot())
             
         # Set up the cluster list area
         self.labels_container = QtGui.QWidget()
@@ -122,6 +135,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_proj = self.ui.mplwidget_projection
         self.mp_wavecutter = self.ui.mplwidget_wavecutter
         self.mp_outlier = self.ui.mplwidget_outliers
+        self.mp_drift = self.ui.mplwidget_drift
                 
         pal = self.palette().window().color()
         bgcolor = (pal.red() / 255.0, pal.blue() / 255.0, pal.green() / 255.0)
@@ -142,6 +156,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         
         self.mp_outlier.figure.clear()
         self.mp_outlier.figure.set_facecolor(bgcolor)
+        
+        self.mp_drift.figure.clear()
+        self.mp_drift.figure.set_facecolor(bgcolor)
         
         self.zoom_active = False
         self.mp_proj.mpl_connect('button_press_event', self.onMousePress)
@@ -200,11 +217,16 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_isi.draw()
         
         # Set up the drift axes
+        self.mp_drift.figure.clear()
+        self.mp_drift.figure.subplots_adjust(hspace=0.0001, wspace=0.0001, bottom=0, top=1, left=0.15, right=1)
+        self.mp_drift.axes = self.mp_drift.figure.add_subplot(1,1,1)                
+        self.mp_drift.axes.set_xticks([])
+        self.mp_drift.axes.set_yticks([])
+        self.mp_drift.draw()
+        
+        # Set up the outlier axes
         self.mp_outlier.figure.clear()
-        self.mp_outlier.figure.subplots_adjust(hspace=0.0001, wspace=0.0001, bottom=0, top=1, left=0.15, right=1)
         self.mp_outlier.axes = self.mp_outlier.figure.add_subplot(1,1,1)                
-        self.mp_outlier.axes.set_xticks([])
-        self.mp_outlier.axes.set_yticks([])
         self.mp_outlier.draw()
         
         # Set up the feature axes
@@ -261,13 +283,16 @@ class PyClustMainWindow(QtGui.QMainWindow):
         layout.insertLayout(layout.count()-1, hlayout)
         
     def hide_show_all_clusters(self, hidden):
+        self.redrawing_proj = True
         for cluster in self.clusters:
             if cluster.radio == self.activeClusterRadioButton():
                 continue
             cluster.check.setChecked(not hidden)
             if hidden:
                 self.checkBox_junk.setChecked(False) # dont show this on show all
-            self.ui.checkBox_show_unclustered.setChecked(not hidden)
+        self.ui.checkBox_show_unclustered.setChecked(not hidden)
+        self.redrawing_proj= False
+        self.updateFeaturePlot()
         
     def update_active_cluster(self):
         self.updateClusterDetailPlots()
@@ -754,40 +779,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.label_refr_fp.setText('')
             self.ui.label_refr_frac.setText('')
             self.ui.label_isolation.setText('')
-            
-#        # Mahal histogram
-#        if N and cluster != self.junk_cluster:
-#            m1 = np.min(cluster.mahal)
-#            m2 = np.max(cluster.mahal)
-#            bins = np.logspace(np.log10(m1), np.log10(m2))
-#            centers = (bins[0:-1] + bins[1:])/2
-#            
-#            count = np.histogram(cluster.mahal, bins)[0]
-#            count = count.astype(float) / np.sum(count)
-#            
-#            self.mp_outlier.axes.hold(False)
-#            self.mp_outlier.axes.plot(centers, count)
-#            self.mp_outlier.axes.hold(True)
-#            
-#            m_ref = cluster.mahal[cluster.refractory[cluster.member]]
-#            if np.size(m_ref):
-#                count_ref = np.histogram(cluster.mahal[cluster.refractory[cluster.member]], bins)[0]
-#                count_ref = count_ref.astype(float) * np.max(count) / np.max(count_ref)
-#                self.mp_outlier.axes.plot(centers, count_ref, 'k')
-#                            
-#            chi = spikeset.chi2f(centers,127)
-#            chi = chi / np.sum(chi)
-#            
-#            self.mp_outlier.axes.plot(centers, chi, 'r--')
-#                
-#            self.mp_outlier.axes.set_xscale('log')
-#            self.mp_outlier.axes.set_xlim([m1,m2])
-#            
-#            endpoint = scipy.stats.chi2.ppf((float(cluster.stats['num_spikes']) - 1.0) / cluster.stats['num_spikes'], 127)            
-#            endpoint_line = mpl.lines.Line2D([endpoint, endpoint], self.mp_outlier.axes.get_ylim(), color='g', linestyle='--')
-#            self.mp_outlier.axes.add_line(endpoint_line)    
-#        else:
-#            self.mp_outlier.axes.cla()
 
         # Drift plot
         if N:
@@ -805,19 +796,17 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 P[countsPerBin == 0,i] = np.NAN
                 P[countsPerBin != 0,i] = P[countsPerBin != 0,i] / countsPerBin[countsPerBin != 0]
                             
-            self.mp_outlier.axes.hold(False)
-            self.mp_outlier.axes.plot(self.t_bin_centers, P)
-            ylim = self.mp_outlier.axes.get_ylim()
-            self.mp_outlier.axes.set_ylim([0, ylim[1]*1.25])
-            self.mp_outlier.axes.set_xticks([])
+            self.mp_drift.axes.hold(False)
+            self.mp_drift.axes.plot(self.t_bin_centers, P)
+            ylim = self.mp_drift.axes.get_ylim()
+            self.mp_drift.axes.set_ylim([0, ylim[1]*1.25])
+            self.mp_drift.axes.set_xticks([])
         else:
-            self.mp_outlier.axes.cla()
-            self.mp_outlier.axes.set_yticks([])
-            self.mp_outlier.axes.set_xticks([])
+            self.mp_drift.axes.cla()
+            self.mp_drift.axes.set_yticks([])
+            self.mp_drift.axes.set_xticks([])
             
-        self.mp_outlier.draw()
-            
-        #self.mp_outlier.axes
+        self.mp_drift.draw()
         
     def onMousePress(self, event):
         if self.limit_mode: return
@@ -1103,6 +1092,50 @@ class PyClustMainWindow(QtGui.QMainWindow):
         
     def wavecutter_add_limit(self):
         self.wave_limit_mode = True        
+        
+    def updateOutlierPlot(self):
+        if self.spikeset == None: return
+        if not self.activeClusterRadioButton(): return
+        
+        cluster = self.activeClusterRadioButton().cluster_reference
+        if not cluster.mahal_valid:
+            cluster.calculateMahal(self.spikeset)
+            
+        if cluster.mahal_valid:
+            # Mahal histogram
+            m1 = np.min(cluster.mahal)
+            m2 = np.max(cluster.mahal)
+            bins = np.logspace(np.log10(m1), np.log10(m2))
+            centers = (bins[0:-1] + bins[1:])/2
+            
+            count = np.histogram(cluster.mahal, bins)[0]
+            count = count.astype(float) / np.sum(count)
+            
+            self.mp_outlier.axes.hold(False)
+            self.mp_outlier.axes.plot(centers, count)
+            self.mp_outlier.axes.hold(True)
+            
+            m_ref = cluster.mahal[cluster.refractory[cluster.member]]
+            if np.size(m_ref):
+                count_ref = np.histogram(cluster.mahal[cluster.refractory[cluster.member]], bins)[0]
+                count_ref = count_ref.astype(float) * np.max(count) / np.max(count_ref)
+                self.mp_outlier.axes.plot(centers, count_ref, 'k')
+                            
+            chi = spikeset.chi2f(centers,127)
+            chi = chi / np.sum(chi)
+            
+            self.mp_outlier.axes.plot(centers, chi, 'r--')
+                
+            self.mp_outlier.axes.set_xscale('log')
+            self.mp_outlier.axes.set_xlim([m1,m2])
+            
+            endpoint = scipy.stats.chi2.ppf((float(cluster.stats['num_spikes']) - 1.0) / cluster.stats['num_spikes'], 127)            
+            endpoint_line = mpl.lines.Line2D([endpoint, endpoint], self.mp_outlier.axes.get_ylim(), color='g', linestyle='--')
+            self.mp_outlier.axes.add_line(endpoint_line)    
+        else:
+            self.mp_outlier.axes.cla()
+        
+        self.mp_outlier.draw()
     
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)

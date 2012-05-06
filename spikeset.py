@@ -217,16 +217,24 @@ class Cluster:
                     self.stats['csi'] = 100.0 * (np.sum(delta <= 0) - np.sum(delta > 0)) / np.size(delta,0)
                 else:
                     self.stats['csi'] = np.NAN
+        self.mahal_valid = False
                     
-                # Work on this as a separate tool, too slow every click # Compute mahal distance for all waveforms in cluster
-#                try:
-#                    temp = np.concatenate([spikeset.spikes[self.member,:,i] for i in range(np.size(spikeset.spikes,2))], axis = 1)
-#                    cvi= np.linalg.inv(np.cov(np.transpose(temp)))
-#                    u = temp-np.mean(temp, axis=0)
-#                    m = np.sum(np.dot(u, cvi) * u, axis=1)
-#                    self.mahal = m
-#                except Exception:
-#                    self.mahal = np.NAN
+    def calculateMahal(self, spikeset):
+        
+        if np.all(np.logical_not(self.member)):
+            return
+        # Work on this as a separate tool, too slow every click # Compute mahal distance for all waveforms in cluster
+        try:
+            temp = np.concatenate([spikeset.spikes[self.member,:,i] for i in range(np.size(spikeset.spikes,2))], axis = 1)
+            cvi= np.linalg.inv(np.cov(np.transpose(temp)))
+            #self.cvd = np.linalg.det(np.cov(np.transpose(temp)))
+            u = temp-np.mean(temp, axis=0)
+            m = np.sum(np.dot(u, cvi) * u, axis=1)
+            self.mahal = m
+            self.mahal_valid = True
+        except Exception:
+            self.mahal = np.NAN
+        
                 
                 
 
@@ -234,22 +242,36 @@ class Cluster:
 
 def chi2f(x,k):
     return 1.0 / (np.power(2.0, k/2.0) * spspec.gamma(k/2.0)) * np.power(x, k/2.0 - 1) * np.exp(- x / 2.0)
+    
+#def mvtf(x, k, p, cvd):
+#    return spspec.gamma((k+p)/2.0) / ( spspec.gamma(k/2.0) * np.power(k * np.pi, p/2.0) * np.sqrt(cvd) * np.power((1.0 + x/k), (k+p)/2.0))
 
 if __name__ == "__main__":
 
     print "Loading ntt"
-    #spikeset = loadNtt('Sample2.ntt')
-    #clust = Cluster(spikeset)
+    spikeset = loadNtt('Sample2.ntt')
+    clust = Cluster(spikeset)
     # (feature_name_x, feature_chan_x, feature_name_Y, feature_chan_y, polygon_points, extra_data)
-    #clust.addBound(('Peak', 0, 'Peak', 1, [[50,50], [50,100], [100, 100], [100, 50]]))
-    #clust.calculateMembership(spikeset)
+    clust.addBound(('Peak', 0, 'Peak', 1, [[150,100], [150,150], [100, 150], [100, 100]]))
+    clust.calculateMembership(spikeset)
     
     #pyplot.hist(np.sqrt(clust.mahal))
 
     x = np.array(range(1000))
-    print chi2f(x, 127)
     
+    #plot(chi2f(x,127))
     
+    m = clust.mahal
+    hold(False)
+    hist(m, normed=True)
+    hold(True)
+    plot(x, chi2f(x,127), 'g', linewidth=3)
     
+    test = mvtf(x, 1, 128, clust.cvd)
+    plot(x, test, 'r', linewidth=3)
+    
+    k = 20;
+    p = 128;
+    cvd = clust.cvd
 
     #del spikeset
