@@ -671,7 +671,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.comboBox_feature_y_chan.setCurrentIndex(
                 self.ui.comboBox_feature_y_chan.currentIndex() - 1)
 
-    def load_ntt(self, fname):
+    def load_spikefile(self, fname):
         if self.unsaved:
             reply = QtGui.QMessageBox.question(self, 'Save',
                 "Do you want to save before loading?", QtGui.QMessageBox.Yes |
@@ -702,7 +702,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         print 'Loading ntt file', fname
         t1 = time.clock()
-        self.spikeset = spikeset.loadNtt(fname)
+        self.spikeset = spikeset.load(fname)
         t2 = time.clock()
         print 'Loaded', self.spikeset.N, 'spikes in ', (t2 - t1), 'seconds'
 
@@ -739,10 +739,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
     def button_load_click(self):
         fname = QtGui.QFileDialog.getOpenFileName(self,
-            'Open ntt file', filter='*.ntt')
+            'Open ntt file', filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
 
         if fname:
-            self.load_ntt(fname)
+            self.load_spikefile(str(fname))
             (root, ext) = os.path.splitext(str(fname))
             boundfilename = root + os.extsep + 'bounds'
             if os.path.exists(boundfilename):
@@ -928,7 +928,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # Draw average waveforms
         for i in range(0, 4):
             if N:
-                self.mp_wave.axes[i].errorbar(range(1, 33),
+                self.mp_wave.axes[i].errorbar(range(0,
+                    np.size(self.spikeset.spikes,1)),
                     np.mean(self.spikeset.spikes[w, :, i], axis=0),
                     np.std(self.spikeset.spikes[w, :, i], axis=0), color='k')
             else:
@@ -1306,7 +1307,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 [0, 0], color=(0, 0, 0), linestyle='-', linewidth=1)
         self.mp_wavecutter.axes.add_line(line)
 
-        self.mp_wavecutter.axes.set_xlim([-0.25, 31.25])
+        self.mp_wavecutter.axes.set_xlim([-0.25, -0.75 +
+            np.size(self.spikeset.spikes,1)])
         self.mp_wavecutter.draw()
 
     def wavecutter_onMousePress(self, event):
@@ -1319,7 +1321,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             return
 
         if event.button == 1 and (event.xdata != None and event.ydata != None):
-            if self.wave_limit_mode:
+            if not self.wave_limit_mode:
                 return
 
             if not self.wave_limit_data:
@@ -1353,9 +1355,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
         height = self.mp_wavecutter.figure.bbox.height
         width = self.mp_wavecutter.figure.bbox.width
         #x0 = self.wave_limit_data[2]
-        offset = width * 0.5 / 31.5
+        offset = width * 0.5 / (np.size(self.spikeset.spikes,1) - 0.5)
         width = width - offset
-        x0 = np.round(self.wave_limit_data[0]) * width / 31.0 + offset
+        x0 = np.round(self.wave_limit_data[0]) * width / \
+                (np.size(self.spikeset.spikes,1) - 1) + offset
         y0 = height - self.wave_limit_data[3]
         x1 = x0
         y1 = height - event.y
@@ -1416,7 +1419,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
                 self.mp_outlier.axes.plot(centers, count_ref, 'k')
 
-            chi = spikeset.chi2f(centers, 127)
+#            chi = spikeset.chi2f(centers, np.size(self.spikeset.spikes,1) *
+#                    np.size(self.spikeset.spikes,2) - 1)
+            chi = scipy.stats.chi2.pdf(centers,
+                    np.size(self.spikeset.spikes,1) *
+                    np.size(self.spikeset.spikes,2) - 1)
+
             chi = chi / np.sum(chi)
 
             self.mp_outlier.axes.plot(centers, chi, 'r--')
@@ -1426,7 +1434,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             endpoint = scipy.stats.chi2.ppf(
                 ((float(cluster.stats['num_spikes']) - 1.0) /
-                cluster.stats['num_spikes']), 127)
+                cluster.stats['num_spikes']), np.size(self.spikeset.spikes,1) *
+                np.size(self.spikeset.spikes,2) - 1)
+
 
             endpoint_line = mpl.lines.Line2D([endpoint, endpoint],
                 self.mp_outlier.axes.get_ylim(), color='g', linestyle='--')

@@ -10,6 +10,7 @@ import numpy as np
 import random
 import matplotlib.nxutils as nx
 import features
+import struct
 
 
 def loadNtt(filename):
@@ -39,29 +40,76 @@ def loadNtt(filename):
     temp = np.fromfile(f, dt)
 
     return Spikeset(temp['spikes'] * np.reshape(a2d_conversion, [1, 1, 4]),
-            temp['time'], 8)
+            temp['time'], 8, 32556)
 
-#    else:
-#        # Slow loopy way to read
-#        f.seek(2**14)
-#        contents = f.read()
-#
-#        # Read the spikes
-#        cf = lambda s,p: [ s[i:i+p] for i in range(0,len(s),p) ]
-#        records = cf(contents, 304)
-#        N = len(records)
-#
-#        spikes = np.zeros([N, 32, 4])
-#        timestamps= np.zeros([N,1])
-#
-#        for i in range(0,N):
-#            record = records[i]
-#            timestamps[i], = struct.unpack('Q', record[0:8])
-#            for sample in range(1,33):
-#                spikes[i,sample-1,:] = struct.unpack('h'*4, record[48 + 2 * 4 * (sample-1): 48 + 2*4*sample])
-#
-#        spikes = spikes * np.reshape(a2d_conversion, [1,1,4])
-#        return Spikeset(spikes, timestamps)
+def readStringFromBinary(f):
+    strlen, = struct.unpack('<I', f.read(4))
+    if strlen:
+        return f.read(strlen)
+    else:
+        return ''
+
+def loadDotSpike(filename):
+    f = open(filename, 'rb')
+    # Everything is little endian
+    # A .spike record is as folows:
+    # Header:
+    # uint16 - version no
+    # uint64 - num spikes
+    # uint16 - num channels
+    # uint16 - num samples per waveform
+    # uint32 - sampling frequency
+    # uint16 - peak align point
+    # 4 * float64 - a2d conversion factor
+    # uint32 + n x char - date time string
+    # uint32 + n x char - subject string
+    # uint32 + n x char - filter description
+
+    version_no, = struct.unpack('<H', f.read(2))
+    if version_no != 1:
+        f.close()
+        return
+
+    print 'Loading', filename
+    print 'Format version #', version_no
+    num_spikes, = struct.unpack('<Q', f.read(8))
+    print 'Num spikes', num_spikes
+    num_chans, = struct.unpack('<H', f.read(2))
+    print 'Num channels', num_chans
+    num_samps, = struct.unpack('<H', f.read(2))
+    print 'Num samples', num_samps
+    fs, = struct.unpack('<I', f.read(4))
+    print 'Sampling frequency', fs
+    peak_align, = struct.unpack('<H', f.read(2))
+    print 'Peak alignment point', peak_align
+    uvolt_conversion = np.array(struct.unpack('<dddd', f.read(8 * 4)))
+    print 'Microvolt conversion factor', uvolt_conversion
+    datestr = readStringFromBinary(f)
+    print 'Date string', datestr
+    subjectstr = readStringFromBinary(f)
+    print 'Subject string', subjectstr
+    filterstr = readStringFromBinary(f)
+    print 'Filter string', filterstr
+
+    # Records:
+    # uint64 - timestamp                    bytes 0:8
+    # numsample x numchannel x int16 - waveform points
+
+    dt = np.dtype([('time', '<Q'),
+        ('spikes', np.dtype('<h'), (num_samps, num_chans))])
+    temp = np.fromfile(f, dt)
+
+    f.close()
+
+    return Spikeset(temp['spikes'] * np.reshape(uvolt_conversion, [1, 1, 4]),
+            temp['time'], peak_align, fs)
+
+def load(filename):
+    if filename.endswith('.ntt'):
+        return loadNtt(filename)
+    if filename.endswith('spike'):
+        return loadDotSpike(filename)
+    return None
 
 # rough breakdown as follows
 # spikeset contains spikes, timestamps for the whole ntt file
@@ -74,13 +122,16 @@ def loadNtt(filename):
 
 # Spike data is N x L x C
 class Spikeset:
-    def __init__(self, spikes, timestamps, peak_index=8):
+    def __init__(self, spikes, timestamps, peak_index, sampling_frequency):
         self.spikes = spikes
         self.time = timestamps
         self.N = len(timestamps)
-        self.peak_index = 8
+        self.peak_index = peak_index
+        self.fs = sampling_frequency
+        self.dt_ms = 1000.0 / self.fs
         self.features = [features.Feature_Peak(self), features.Feature_Energy(self),
-            features.Feature_Time(self), features.Feature_Valley(self)]
+            features.Feature_Time(self), features.Feature_Valley(self),
+            features.Feature_Barycenter(self)]
         self.T = (max(self.time) - min(self.time)) / 1e6
 
     def __del__(self):
@@ -256,7 +307,6 @@ class Cluster:
                 self.stats['csi'] = np.NAN
 
     def calculateMahal(self, spikeset):
-
         if np.all(np.logical_not(self.member)):
             return
         # Work on this as a separate tool, too slow every click
@@ -274,17 +324,19 @@ class Cluster:
             self.mahal = np.NAN
 
 
-#from matplotlib import pyplot
-
-def chi2f(x,k):
-    return (1.0 / (np.power(2.0, k/2.0) * spspec.gamma(k/2.0)) *
-        np.power(x, k/2.0 - 1) * np.exp(- x / 2.0))
-
-#def mvtf(x, k, p, cvd):
-#    return spspec.gamma((k+p)/2.0) / ( spspec.gamma(k/2.0) * np.power(k * np.pi, p/2.0) * np.sqrt(cvd) * np.power((1.0 + x/k), (k+p)/2.0))
-
 if __name__ == "__main__":
-    #print "Loading ntt"
+    print "Loading dotspike"
+    ss = loadDotSpike('TT22.spike')
+
+    d = ss.featureByName('Barycenter').data
+
+    import pylab
+
+#    pylab.plot(ss.spikes[1,:,])
+    pylab.scatter(d[:,0], d[:,1])
+    pylab.show()
+
+    #loadDotSpike('TT22.spike')
     #spikeset = loadNtt('Sample2.ntt')
     #clust = Cluster(spikeset)
     # (name_x, chan_x, name_Y, chan_y, polygon_points, extra_data)

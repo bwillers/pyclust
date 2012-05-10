@@ -94,3 +94,42 @@ class Feature_Peak(Feature):
     def calculate(self, spikeset):
         searchrange = range(spikeset.peak_index - 3, spikeset.peak_index + 4)
         return np.max(spikeset.spikes[:, searchrange, :], axis=1)
+
+
+class Feature_Barycenter(Feature):
+    def __init__(self, spikeset):
+        Feature.__init__(self, 'Barycenter', spikeset)
+
+    def calculate(self, spikeset):
+        p = Feature_Peak(spikeset)
+        p = p.data
+
+        p = p - np.min(np.max(p, axis=1))
+
+
+        x = p[:,0] - p[:,2]
+        y = p[:,1] - p[:,3]
+        angle = np.arctan2(y,x)
+        #amp = p - np.mean(p, axis=0)
+        #amp[amp < 0] = 0
+        #amp = np.sum(amp, axis=1)
+        #amp = np.sum(p, axis=1)
+        retval = np.zeros((np.size(p,0),2))
+        retval[:,0] = np.cos(angle)# * amp
+        w = retval[:,0] > 0
+        retval[w,0] = retval[w,0] * p[w,0]
+        w = np.logical_not(w)
+        retval[w,0] = retval[w,0] * p[w,2]
+
+        retval[:,1] = np.sin(angle)# * amp
+        w = retval[:,1] > 0
+        retval[w,1] = retval[w,1] * p[w,1]
+        w = np.logical_not(w)
+        retval[w,1] = retval[w,1] * p[w,3]
+
+        return retval
+
+
+
+
+
