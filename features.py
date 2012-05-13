@@ -130,6 +130,19 @@ class Feature_Barycenter(Feature):
         return retval
 
 
+class Feature_FallArea(Feature):
+    def __init__(self, spikeset):
+        Feature.__init__(self, 'Fall Area/Time', spikeset)
+#        self.valid_y_all_chans.append('Fall Time')
 
-
+    def calculate(self, spikeset):
+        wv = np.mean(spikeset.spikes, axis=2)  # Average over channels
+        ret = np.sum( wv[:, spikeset.peak_index:], axis=1)
+        ind = np.argmin(wv[:, spikeset.peak_index:], axis=1)
+        rnd = np.random.rand(np.size(ind,0)) - 0.5
+        retval = np.zeros((np.size(wv,0), 2))
+        retval[:, 0] = ret
+        retval[:, 1] = (ind + rnd) * 1000.0 / spikeset.fs
+        print np.shape(retval)
+        return retval
 

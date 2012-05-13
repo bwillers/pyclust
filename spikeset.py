@@ -131,7 +131,7 @@ class Spikeset:
         self.dt_ms = 1000.0 / self.fs
         self.features = [features.Feature_Peak(self), features.Feature_Energy(self),
             features.Feature_Time(self), features.Feature_Valley(self),
-            features.Feature_Barycenter(self)]
+            features.Feature_Barycenter(self), features.Feature_FallArea(self)]
         self.T = (max(self.time) - min(self.time)) / 1e6
 
     def __del__(self):
@@ -301,8 +301,8 @@ class Cluster:
                 self.isi < self.burst_period,
                 self.isi > self.refr_period)]
             if np.size(delta,0):
-                self.stats['csi'] = (100.0 / np.size(delta, 0) *
-                    np.sum(delta <= 0) - np.sum(delta > 0))
+                self.stats['csi'] = ((100.0 / np.size(delta, 0)) *
+                    (np.sum(delta <= 0) - np.sum(delta > 0)))
             else:
                 self.stats['csi'] = np.NAN
 
@@ -328,7 +328,9 @@ if __name__ == "__main__":
     print "Loading dotspike"
     ss = loadDotSpike('TT22.spike')
 
-    d = ss.featureByName('Barycenter').data
+    d = ss.featureByName('Fall Area').data
+
+    print np.shape(d)
 
     import pylab
 
