@@ -131,7 +131,8 @@ class Spikeset:
         self.dt_ms = 1000.0 / self.fs
         self.features = [features.Feature_Peak(self), features.Feature_Energy(self),
             features.Feature_Time(self), features.Feature_Valley(self),
-            features.Feature_Barycenter(self), features.Feature_FallArea(self)]
+            features.Feature_Barycenter(self), features.Feature_FallArea(self),
+            features.Feature_PCA(self)]
         self.T = (max(self.time) - min(self.time)) / 1e6
 
     def __del__(self):
@@ -326,17 +327,48 @@ class Cluster:
 
 if __name__ == "__main__":
     print "Loading dotspike"
-    ss = loadDotSpike('TT22.spike')
+#    ss = loadDotSpike('TT22.spike')
+    ss = loadNtt('TT6_neo.ntt')
 
-    d = ss.featureByName('Fall Area').data
-
-    print np.shape(d)
+    d = ss.featureByName('PCA').data
 
     import pylab
 
+    pylab.ion()
+
 #    pylab.plot(ss.spikes[1,:,])
-    pylab.scatter(d[:,0], d[:,1])
-    pylab.show()
+#    pylab.show()
+
+    from sklearn import mixture
+    g = mixture.GMM(n_components=8);
+    g.fit(d[:,1:2])
+    label = g.predict(d[:, 1:2])
+
+
+    pylab.scatter(d[0:500,1], d[0:500,2], s=5, c=label[0:500])
+
+    import pdb; pdb.set_trace()
+    g = mixture.GMM(n_components=10, cvtype='full')
+
+    g.fit(data)
+    Out[171]: GMM(cvtype='full', n_components=10)
+
+    label = g.predict(data)
+
+    scatter(data[:,1], data[:,2], s=5, edgecolor='none', c=label)
+    Out[173]: <matplotlib.collections.PathCollection at 0x19e88128>
+
+    scatter(data[:,0], data[:,1], s=5, edgecolor='none', c=label)
+    Out[174]: <matplotlib.collections.PathCollection at 0x1a52d3c8>
+
+    scatter(data[:,0], data[:,2], s=5, edgecolor='none', c=label)
+    Out[175]: <matplotlib.collections.PathCollection at 0x13fa79b0>
+
+    scatter(data[:,0], data[:,3], s=5, edgecolor='none', c=label)
+    Out[176]: <matplotlib.collections.PathCollection at 0x1a313160>
+
+    scatter(data[:,1], data[:,3], s=5, edgecolor='none', c=label)
+    Out[177]: <matplotlib.collections.PathCollection at 0x19da7b70>
 
     #loadDotSpike('TT22.spike')
     #spikeset = loadNtt('Sample2.ntt')
