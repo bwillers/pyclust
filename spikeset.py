@@ -70,6 +70,7 @@ def loadDotSpike(filename):
         f.close()
         return
 
+    print ''
     print 'Loading', filename
     print 'Format version #', version_no
     num_spikes, = struct.unpack('<Q', f.read(8))
@@ -351,25 +352,25 @@ if __name__ == "__main__":
     g = mixture.GMM(n_components=10, cvtype='full')
 
     g.fit(data)
-    Out[171]: GMM(cvtype='full', n_components=10)
-
-    label = g.predict(data)
-
-    scatter(data[:,1], data[:,2], s=5, edgecolor='none', c=label)
-    Out[173]: <matplotlib.collections.PathCollection at 0x19e88128>
-
-    scatter(data[:,0], data[:,1], s=5, edgecolor='none', c=label)
-    Out[174]: <matplotlib.collections.PathCollection at 0x1a52d3c8>
-
-    scatter(data[:,0], data[:,2], s=5, edgecolor='none', c=label)
-    Out[175]: <matplotlib.collections.PathCollection at 0x13fa79b0>
-
-    scatter(data[:,0], data[:,3], s=5, edgecolor='none', c=label)
-    Out[176]: <matplotlib.collections.PathCollection at 0x1a313160>
-
-    scatter(data[:,1], data[:,3], s=5, edgecolor='none', c=label)
-    Out[177]: <matplotlib.collections.PathCollection at 0x19da7b70>
-
+#    Out[171]: GMM(cvtype='full', n_components=10)
+#
+#    label = g.predict(data)
+#
+#    scatter(data[:,1], data[:,2], s=5, edgecolor='none', c=label)
+#    Out[173]: <matplotlib.collections.PathCollection at 0x19e88128>
+#
+#    scatter(data[:,0], data[:,1], s=5, edgecolor='none', c=label)
+#    Out[174]: <matplotlib.collections.PathCollection at 0x1a52d3c8>
+#
+#    scatter(data[:,0], data[:,2], s=5, edgecolor='none', c=label)
+#    Out[175]: <matplotlib.collections.PathCollection at 0x13fa79b0>
+#
+#    scatter(data[:,0], data[:,3], s=5, edgecolor='none', c=label)
+#    Out[176]: <matplotlib.collections.PathCollection at 0x1a313160>
+#
+#    scatter(data[:,1], data[:,3], s=5, edgecolor='none', c=label)
+#    Out[177]: <matplotlib.collections.PathCollection at 0x19da7b70>
+#
     #loadDotSpike('TT22.spike')
     #spikeset = loadNtt('Sample2.ntt')
     #clust = Cluster(spikeset)
