@@ -49,6 +49,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.current_feature = None
         self.clusters = []
         self.current_filename = None
+        self.junk_cluster = None
 
         self.limit_mode = False
         self.redrawing_proj = False
@@ -193,10 +194,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.verticalLayout_3.addWidget(self.mp_proj)
 
         # Connect the relevant signals/slots
-#        QtCore.QObject.connect(self.ui.checkBox_refractory,
-#            QtCore.SIGNAL("stateChanged(int)"), self.mp_proj,
-#            QtCore.SLOT("setShowUnclustered(bool)"))
-
         # Signals for unclustered show checkbox
 
         QtCore.QObject.connect(self.mp_proj,
@@ -226,7 +223,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # Signal for polygon boundary drawn
         QtCore.QObject.connect(self.mp_proj,
                 QtCore.SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"),
-                self.addPolygonBoundary)
+                self.addBoundary)
+        QtCore.QObject.connect(self.mp_proj,
+                QtCore.SIGNAL("ellipseBoundaryDrawn(PyQt_PyObject)"),
+                self.addBoundary)
+
+        # Signal for elliptical boundary checkbox
+        self.ui.checkBox_ellipse.stateChanged.connect(
+                self.mp_proj.setBoundaryElliptical)
 
         self.mp_wave = self.ui.mplwidget_waveform
         self.mp_isi = self.ui.mplwidget_isi
@@ -502,13 +506,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
                     self.activeClusterRadioButton().cluster_reference.color)
 
     # Do something with the boundary that gets returned
-    def addPolygonBoundary(self, bound):
+    def addBoundary(self, bound):
         if not self.activeClusterRadioButton():
             return
 
         clust = self.activeClusterRadioButton().cluster_reference
         if clust != self.junk_cluster:
-            clust.addBound(bound)
+            clust.addBoundary(bound)
         else:
             print "Junk cluster updated, resetting bounds"
             self.junk_cluster.add_bounds.append(bound)
@@ -531,11 +535,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
             cluster = self.activeClusterRadioButton().cluster_reference
 
             if cluster != self.junk_cluster:
-                cluster.removeBound(feature_x, feature_x_chan,
-                    feature_y, feature_y_chan)
+                cluster.removeBound((feature_x, feature_y),
+                    (feature_x_chan, feature_y_chan))
             else:
-                cluster.removeBound(feature_x, feature_x_chan,
-                    feature_y, feature_y_chan, 'add')
+                cluster.removeBound((feature_x, feature_y),
+                    (feature_x_chan, feature_y_chan), 'add')
             cluster.calculateMembership(self.spikeset)
             self.update_active_cluster()
             self.updateFeaturePlot()
@@ -559,7 +563,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.add_cluster()
 
     def feature_channel_x_changed(self, index):
-        if index == -1 or self.setting_up_combos:
+        if index == -1:
+            return
+        if self.setting_up_combos:
             return
 
         had_proj = self.redrawing_proj
@@ -597,12 +603,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.redrawing_proj = False
 
         self.mp_proj.setChanX(int(
-            self.ui.comboBox_feature_x_chan.currentText()) - 1)
+                self.ui.comboBox_feature_x_chan.currentText()) - 1)
 
     def feature_x_changed(self, index):
         if index == -1:
             return
 
+        self.redrawing_proj = True
         self.setting_up_combos = True
 
         # Set the options in the y feature box accordingly
@@ -624,7 +631,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # Update the feature widget
         self.mp_proj.setFeatureX(current_x)
 
+        self.mp_proj.setChanX(int(
+                self.ui.comboBox_feature_x_chan.currentText()) - 1)
+
         self.setting_up_combos = False
+        self.redrawing_proj = False
         self.feature_y_changed(0)
 
     def feature_y_changed(self, index):
@@ -720,6 +731,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if reply == QtGui.QMessageBox.No:
                 pass
 
+        self.redrawing_proj = True
+
         print ''
         print 'Clearing current clusters'
         for cluster in self.clusters[:]:
@@ -732,7 +745,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.clusters = []
         self.current_filename = None
         self.limit_mode = False
-        self.redrawing_proj = False
         self.redrawing_details = False
         self.unsaved = False
 
@@ -747,8 +759,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.t_bin_centers = ((self.t_bins[0:-1] + self.t_bins[1:]) / 2
              - self.spikeset.time[0]) / 60e6
-
-        self.redrawing_proj = True
 
         # Set the combo boxes to the current feature for now
 
@@ -787,7 +797,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
     def updateFeaturePlot(self):
         if self.redrawing_proj:
             return
-        if not self.spikeset:
+        if not self.spikeset or not self.junk_cluster:
             return
 
         self.mp_proj.updatePlot(self.spikeset,

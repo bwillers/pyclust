@@ -13,11 +13,13 @@ import matplotlib as mpl
 from matplotlib import rcParams
 rcParams['font.size'] = 9
 
+import boundaries # Need to know how to create boundaries
 
 class ProjectionWidget(Canvas):
 
     __pyqtSignals__ = ("featureRedrawRequired()",
-    "polygonBoundaryDrawn(PyObject*)")
+    "polygonBoundaryDrawn(PyQt_PyObject)",
+    "ellipseBoundaryDrawn(PyQt_PyObject)")
 
     def __init__(self, parent=None):
         self.figure = Figure()
@@ -34,7 +36,7 @@ class ProjectionWidget(Canvas):
         self.figure.clear()
         self.figure.set_facecolor(bgcolor)
         # Set up the feature axes
-        self.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
+        self.figure.subplots_adjust(hspace=0.000, wspace=0.000,
             bottom=0.0, top=1, left=0.0, right=1)
         self.axes = self.figure.add_subplot(1, 1, 1)
 
@@ -42,6 +44,7 @@ class ProjectionWidget(Canvas):
                 QSizePolicy.Expanding)
         Canvas.updateGeometry(self)
 
+        self.prof_limits = None
         # Properties describing how to draw the clusters
         self.unclustered = True
         self.refractory = True
@@ -58,6 +61,7 @@ class ProjectionWidget(Canvas):
         self.zoom_active = False
         self.limit_mode = False
         self.limit_cluster = None
+        self.limit_type = 2 # 1 = polygon, 2 = ellipse
         self.mpl_connect('button_press_event', self.onMousePress)
         self.mpl_connect('button_release_event', self.onMouseRelease)
         self.mpl_connect('motion_notify_event', self.onMouseMove)
@@ -86,6 +90,14 @@ class ProjectionWidget(Canvas):
     def setPlotType(self, ptype):
         self.ptype = ptype
         self.emit(SIGNAL("featureRedrawRequired()"))
+
+    @pyqtSignature("setBoundaryElliptical(bool)")
+    def setBoundaryElliptical(self, iselliptical):
+        if iselliptical:
+            self.limit_type = 2
+        else:
+            self.limit_type = 1
+        self.stopMouseAction()
 
     def resetLimits(self):
         self.prof_limits_reference = None
@@ -230,72 +242,75 @@ class ProjectionWidget(Canvas):
                 continue
 
             # Limit boundaries with solid line
-            bound_polys = cluster.getBoundPolygon(self.feature_x, self.chan_x,
+            bounds = cluster.getBoundaries(self.feature_x, self.chan_x,
                 self.feature_y, self.chan_y)
-
-            if bound_polys:
-                for bound_poly in bound_polys:
-                    bound_poly = np.vstack((bound_poly, bound_poly[0, :]))
-                    col = map(lambda s: s / 255.0, cluster.color)
-                    for i in range(np.size(bound_poly, 0)):
-                        line = mpl.lines.Line2D(bound_poly[i:i + 2, 0],
-                            bound_poly[i:i + 2, 1], color=col, linestyle='-')
-                        self.axes.add_line(line)
+            for bound in bounds:
+                col = map(lambda s: s / 255.0, cluster.color)
+                bound.draw(self.axes, color=col, linestyle='-')
 
             # Addition boundaries with dashed line
-            bound_polys = cluster.getBoundPolygon(self.feature_x, self.chan_x,
+            bounds = cluster.getBoundaries(self.feature_x, self.chan_x,
                 self.feature_y, self.chan_y, 'add')
+            for bound in bounds:
+                col = map(lambda s: s / 255.0, cluster.color)
+                bound.draw(self.axes, color=col, linestyle='--')
 
-            if bound_polys:
-                for bound_poly in bound_polys:
-                    bound_poly = np.vstack((bound_poly, bound_poly[0, :]))
-                    col = map(lambda s: s / 255.0, cluster.color)
+    def finalizeZoom(self, event):
+        self.zoom_active = False
 
-                    for i in range(np.size(bound_poly, 0)):
-                        line = mpl.lines.Line2D(bound_poly[i:i + 2, 0],
-                            bound_poly[i:i + 2, 1], color=col, linestyle='--')
-                        self.axes.add_line(line)
+        temp = (np.sort([event.xdata, self.zoom_startpos[0]]),
+            np.sort([event.ydata, self.zoom_startpos[1]]))
+
+        # do a sanity check, we cant zoom to an area smaller than
+        # say 1/20 of the display
+        delta_x = ((temp[0][1] - temp[0][0])
+                / (self.prof_limits[0][1] - self.prof_limits[0][0]))
+        delta_y = ((temp[1][1] - temp[1][0])
+                / (self.prof_limits[1][1] - self.prof_limits[1][0]))
+
+        if delta_x < 0.025 or delta_y < 0.025:
+            return
+
+        self.prof_limits = temp
+
+        if self.ptype == -2:
+            self.axes.set_xlim(self.prof_limits[0])
+            self.axes.set_ylim(self.prof_limits[1])
+            self.draw()
+        else:  # if its a density plot we should rebin for now
+            self.emit(SIGNAL("featureRedrawRequired()"))
+        self.repaint()
 
     def onMousePress(self, event):
         if self.limit_mode:
             return
         if (event.xdata != None and event.ydata != None) and event.button == 1:
-            self.zoom_active = True
-            self.zoom_startpos = (event.xdata, event.ydata, event.x, event.y)
+            if not self.prof_limits:
+                return
+            if not self.zoom_active:
+                self.zoom_active = True
+                self.zoom_startpos = (event.xdata, event.ydata)
+            else:
+                self.finalizeZoom(event)
 
     def onMouseRelease(self, event):
         # Left mouse button
         if event.button == 1 and (event.xdata != None and event.ydata != None):
-            if self.zoom_active and not self.limit_mode:
-                self.zoom_active = False
+            if self.zoom_active:
+                self.finalizeZoom(event)
+            if self.limit_mode and self.limit_type == 1:
+                self.limit_data.append((event.xdata, event.ydata))
+            if self.limit_mode and self.limit_type == 2:
+                if len(self.limit_data) == 1:
+                    self.limit_data.append((event.xdata, event.ydata))
+                    self.repaint()
+                elif len(self.limit_data) == 0:
+                    # set the center of the ellipse
+                    self.limit_data = [(event.xdata, event.ydata)]
+                    self.repaint()
 
-                temp = (np.sort([event.xdata, self.zoom_startpos[0]]),
-                    np.sort([event.ydata, self.zoom_startpos[1]]))
-
-                # do a sanity check, we cant zoom to an area smaller than
-                # say 1/20 of the display
-                delta_x = ((temp[0][1] - temp[0][0])
-                        / (self.prof_limits[0][1] - self.prof_limits[0][0]))
-                delta_y = ((temp[1][1] - temp[1][0])
-                        / (self.prof_limits[1][1] - self.prof_limits[1][0]))
-
-                if delta_x < 0.025 or delta_y < 0.025:
-                    return
-
-                self.prof_limits = temp
-
-                if self.ptype == -2:
-                    self.axes.set_xlim(self.prof_limits[0])
-                    self.axes.set_ylim(self.prof_limits[1])
-                    self.draw()
-                else:  # if its a density plot we should rebin for now
-                    self.emit(SIGNAL("featureRedrawRequired()"))
-            if self.limit_mode:
-                self.limit_data.append((event.xdata, event.ydata,
-                    event.x, event.y))
-
-        # reset bounds on right click, or cancel / complete the bounds
-        if event.button == 3 and self.limit_mode:
+        # complete the polygon boundary
+        if event.button == 3 and self.limit_mode and self.limit_type == 1:
             if event.xdata != None and event.ydata != None:
                 self.limit_data.append((event.xdata, event.ydata,
                     event.x, event.y))
@@ -308,14 +323,43 @@ class ProjectionWidget(Canvas):
                 print "Adding boundary on", self.feature_x, self.chan_x + 1, \
                     self.feature_y, self.chan_y + 1
 
-                bound = (self.feature_x, self.chan_x,
-                    self.feature_y, self.chan_y, temp)
+                bound = boundaries.BoundaryPolygon2D(
+                        (self.feature_x, self.feature_y),
+                        (self.chan_x, self.chan_y), temp)
 
-                self.emit(SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"), bound)
+                # With only two points there isnt really a polyogon
+                if len(temp) > 2:
+                    self.emit(SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"), bound)
                 self.stopMouseAction()
 
+        # complete the ellipse boundary
+        if event.button == 3 and self.limit_mode and self.limit_type == 2:
+            center = self.limit_data[0]
+            vc = np.array(center)
+            va = np.array(self.limit_data[1])
+            vm = np.array((event.xdata, event.ydata))
+
+            angvec = va - vc
+            angle = np.arctan2(angvec[1], angvec[0])
+            width = np.linalg.norm(angvec)
+
+            mvec = vm - vc
+            angvec = angvec / width
+            height = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
+
+            bound = boundaries.BoundaryEllipse2D(
+                    (self.feature_x, self.feature_y),
+                    (self.chan_x, self.chan_y), center, angle,
+                    (width, height))
+
+            self.emit(SIGNAL("ellipseBoundaryDrawn(PyQt_PyObject)"), bound)
+
+            self.limit_data = []
+            self.limit_mode = False
+            self.repaint()
+
         # Right click resets to original bounds
-        elif event.button == 3:
+        elif event.button == 3 and (not self.limit_mode):
             self.prof_limits = self.prof_limits_reference
             if self.ptype == -2:
                 self.axes.set_xlim(self.prof_limits[0])
@@ -332,10 +376,12 @@ class ProjectionWidget(Canvas):
             # draw rectangle is in the qt coordinates,
             # so we need a little conversion
             height = self.figure.bbox.height
-            x0 = self.zoom_startpos[2]
-            y0 = height - self.zoom_startpos[3]
-            x1 = event.x
-            y1 = height - event.y
+            start = self.axes.transData.transform(self.zoom_startpos)
+            end = self.axes.transData.transform((event.xdata, event.ydata))
+            x0 = start[0]
+            y0 = height - start[1]
+            x1 = end[0]
+            y1 = height - end[1]
             rect = [int(val) for val in min(x0, x1),
                 min(y0, y1), abs(x1 - x0), abs(y1 - y0)]
             self.drawRectangle(rect)
@@ -344,21 +390,65 @@ class ProjectionWidget(Canvas):
     # boundary creation as required
     def paintEvent(self, event):
         Canvas.paintEvent(self, event)
-        if self.limit_mode:
-            qp = QPainter()
-            height = self.figure.bbox.height
 
-            qp.begin(self)
-            qp.setPen(QColor(*self.limit_color))
+        if not self.limit_mode:
+            return
+
+        qp = QPainter()
+
+        qp.begin(self)
+        qp.setPen(QColor(*self.limit_color))
+        # convert to data units
+        height = self.figure.bbox.height
+        t = lambda s: self.axes.transData.transform(s)
+
+        # Draw polygon
+        if self.limit_mode and self.limit_type == 1:
             for i in range(len(self.limit_data) - 1):
-                qp.drawLine(self.limit_data[i][2],
-                    height - self.limit_data[i][3], self.limit_data[i + 1][2],
-                    height - self.limit_data[i + 1][3])
+                start = t(self.limit_data[i])
+                end = t(self.limit_data[i + 1])
+                qp.drawLine(start[0], height - start[1],
+                        end[0], height - end[1])
             if self.limit_data:
-                qp.drawLine(self.limit_data[-1][2],
-                    height - self.limit_data[-1][3], self._mouse_move_event.x,
-                    height - self._mouse_move_event.y)
-            qp.end()
+                start = t(self.limit_data[-1])
+                end = t((self._mouse_move_event.xdata,
+                    self._mouse_move_event.ydata))
+                qp.drawLine(start[0], height - start[1],
+                        end[0], height - end[1])
+
+        # Draw an ellipse
+        if self.limit_mode and self.limit_type == 2 and self.limit_data:
+            # convert to display coordinates
+            center = t(self.limit_data[0])
+            mouse = t((self._mouse_move_event.xdata,
+                    self._mouse_move_event.ydata))
+
+            if len(self.limit_data) == 1: # we've set the center, draw line
+                eheight = 30
+                angvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
+                angle = np.arctan2(angvec[1], angvec[0])
+                ewidth = np.linalg.norm(angvec)
+
+            elif len(self.limit_data) > 1: # we've also fixed the angle
+                angleline = t(self.limit_data[1])
+                angvec = np.array([angleline[0] - center[0],
+                        angleline[1] - center[1]])
+                angle = np.arctan2(angvec[1], angvec[0])
+                ewidth = np.linalg.norm(angvec)
+                angvec = angvec / ewidth
+
+                mvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
+                eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
+
+            if self.limit_data:
+                qp.translate(center[0], height - center[1])
+                qp.rotate(-angle * 180.0 / np.pi)
+
+                qp.drawEllipse(QPoint(0,0), ewidth, eheight)
+                qp.drawLine(-ewidth, 0, ewidth, 0)
+                qp.drawLine(0, -eheight, 0, eheight)
+
+        qp.end()
 
     # Start drawing a boundary for a cluster
     def drawBoundary(self, color):
@@ -370,3 +460,4 @@ class ProjectionWidget(Canvas):
         self.limit_mode = False
         self.limit_color = None
         self.zoom_active = False
+        self.repaint()

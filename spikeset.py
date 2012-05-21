@@ -4,14 +4,16 @@ Created on Fri Mar 30 04:18:30 2012
 
 @author: Bernard
 """
+import random
+import struct
 
 import scipy.special as spspec
 import numpy as np
-import random
-import matplotlib.nxutils as nx
-import features
-import struct
 
+import features
+
+# pickle needs this to load the saved bounds
+from boundaries import BoundaryPolygon2D
 
 def loadNtt(filename):
     f = open(filename, 'rb')
@@ -148,7 +150,6 @@ class Spikeset:
                 return feature
         return None
 
-
 # Clusters have a color, a set of boundaries and some calculation functions
 class Cluster:
     def __init__(self, spikeset):
@@ -166,33 +167,28 @@ class Cluster:
     def __del__(self):
         print "Cluster object being destroyed"
 
-    def addBound(self, bound):
+    def addBoundary(self, bound):
         # bounds should be a 5 or 6 length tuple,
         # (name_x, chan_x, name_Y, chan_y, polygon_points, extra_data)
-        self.removeBound(bound[0], bound[1], bound[2], bound[3])
+        self.removeBound(bound.features, bound.chans)
         self.bounds.append(bound)
 
-    def getBoundPolygon(self, feature_name_x, feature_chan_x, feature_name_y,
+    def getBoundaries(self, feature_name_x, feature_chan_x, feature_name_y,
             feature_chan_y, boundtype='limits'):
-        f = lambda bound: ((bound[0] == feature_name_x) and
-            (bound[1] == feature_chan_x) and (bound[2] == feature_name_y) and
-            (bound[3] == feature_chan_y))
+        f = lambda bound: (bound.features == (feature_name_x, feature_name_y))\
+                and (bound.chans == (feature_chan_x, feature_chan_y))
         if boundtype == 'add':
-            temp = [bound[4] for bound in self.add_bounds if f(bound)]
+            temp = [bound for bound in self.add_bounds if f(bound)]
         elif boundtype == 'del':
-            temp = [bound[4] for bound in self.del_bounds if f(bound)]
+            temp = [bound for bound in self.del_bounds if f(bound)]
         elif boundtype == 'limits':
-            temp = [bound[4] for bound in self.bounds if f(bound)]
+            temp = [bound for bound in self.bounds if f(bound)]
 
-        if temp:
-            return temp
-        return None
+        return temp
 
-    def removeBound(self, feature_name_x, feature_chan_x, feature_name_y,
-            feature_chan_y, boundtype='limits'):
-        f = lambda bound: not ((bound[0] == feature_name_x) and
-            (bound[1] == feature_chan_x) and (bound[2] == feature_name_y)
-            and (bound[3] == feature_chan_y))
+    def removeBound(self, featureNames, featureChans, boundtype='limits'):
+        f = lambda bound: bound.features != featureNames or \
+            bound.chans != featureChans
 
         if boundtype == 'add':
             self.add_bounds = [bound for bound in self.add_bounds if f(bound)]
@@ -213,36 +209,21 @@ class Cluster:
             # if we have additive boundaries, use those
             self.member = np.array([False] * spikeset.N)
             for bound in self.add_bounds:
-                px = [feature.data[:, bound[1]] for feature in
-                    spikeset.features if feature.name == bound[0]][0]
-                py = [feature.data[:, bound[3]] for feature in
-                    spikeset.features if feature.name == bound[2]][0]
-
-                data = np.column_stack((px, py))
-
                 self.member = np.logical_or(self.member,
-                    nx.points_inside_poly(data, bound[4]))
+                    bound.withinBoundary(spikeset))
         else:
             self.member = np.array([True] * spikeset.N)
 
         # start with everything and cut it down
         for bound in self.bounds:
-            px = [feature.data[:, bound[1]] for feature in
-                spikeset.features if feature.name == bound[0]][0]
-            py = [feature.data[:, bound[3]] for feature in
-                spikeset.features if feature.name == bound[2]][0]
-
-            data = np.column_stack((px, py))
-
             self.member = np.logical_and(self.member,
-                nx.points_inside_poly(data, bound[4]))
+                bound.withinBoundary(spikeset))
 
         for (chan, sample, lower_bound, upper_bound) in self.wave_bounds:
             w = np.logical_and(
                 spikeset.spikes[:, sample, chan] >= lower_bound,
                 spikeset.spikes[:, sample, chan] <= upper_bound)
             self.member = np.logical_and(self.member, w)
-
 
         t = spikeset.time[self.member]
         self.refr_period = 2
