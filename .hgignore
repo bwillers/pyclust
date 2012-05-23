@@ -1,10 +1,13 @@
-glob:*_neo.ntt
+glob:*.ntt
+glob:*.swp
 glob:*.pyc
 glob:*.mat
 glob:MClust-3.5*
+glob:*.zip
 glob:*.fd
 glob:*.m
 glob:*.bounds
+glob:*.spike
 glob:*.cluster
 glob:build/*
 glob:dist/*
