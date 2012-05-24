@@ -743,6 +743,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.current_feature = None
         self.mp_proj.resetLimits()
         self.clusters = []
+        self.junk_cluster = None
         self.current_filename = None
         self.limit_mode = False
         self.redrawing_details = False
@@ -1194,9 +1195,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
 #            chi = spikeset.chi2f(centers, np.size(self.spikeset.spikes,1) *
 #                    np.size(self.spikeset.spikes,2) - 1)
-            chi = scipy.stats.chi2.pdf(centers,
-                    np.size(self.spikeset.spikes, 1) *
-                    np.size(self.spikeset.spikes, 2) - 1)
+            chi = scipy.stats.chi2.pdf(centers,4)
+#                    np.size(self.spikeset.spikes, 1) *
+#                    np.size(self.spikeset.spikes, 2) - 1)
 
             chi = chi / np.sum(chi)
 
@@ -1207,8 +1208,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             endpoint = scipy.stats.chi2.ppf(
                 ((float(cluster.stats['num_spikes']) - 1.0) /
-                cluster.stats['num_spikes']), np.size(self.spikeset.spikes, 1)
-                * np.size(self.spikeset.spikes, 2) - 1)
+                cluster.stats['num_spikes']), 4)#np.size(self.spikeset.spikes, 1)
+#                * np.size(self.spikeset.spikes, 2) - 1)
 
             endpoint_line = mpl.lines.Line2D([endpoint, endpoint],
                 self.mp_outlier.axes.get_ylim(), color='g', linestyle='--')

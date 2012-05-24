@@ -226,7 +226,7 @@ class Cluster:
             self.member = np.logical_and(self.member, w)
 
         t = spikeset.time[self.member]
-        self.refr_period = 2
+        self.refr_period = 1.7
         self.burst_period = 20
         self.isi = (t[1:] - t[0:-1]) / 1e3
 
@@ -295,9 +295,9 @@ class Cluster:
         # Work on this as a separate tool, too slow every click
         # Compute mahal distance for all waveforms in cluster
         try:
-            temp = np.concatenate([spikeset.spikes[self.member, :, i] for i in
-                range(np.size(spikeset.spikes, 2))], axis=1)
-
+#            temp = np.concatenate([spikeset.spikes[self.member, :, i] for i in
+#                range(np.size(spikeset.spikes, 2))], axis=1)
+            temp = spikeset.featureByName('Peak').data[self.member,:]
             cvi= np.linalg.inv(np.cov(np.transpose(temp)))
             u = temp-np.mean(temp, axis=0)
             m = np.sum(np.dot(u, cvi) * u, axis=1)
@@ -307,32 +307,122 @@ class Cluster:
             self.mahal = np.NAN
 
 
+def autotrim(data, refr, projused=(0,1)):
+    """docstring for autotrim"""
+    import scipy.stats
+    import matplotlib as mpl
+    import pylab
+#    from sklearn import mixture
+#    g = mixture.GMM(n_components=1)
+    proj_x = 0
+    proj_y = 2
+
+    ax = pylab.subplot(1,1,1)
+
+#                         marker='o', markersize=1,
+#                        markerfacecolor='g', markeredgecolor='g',
+#                        linestyle='None', zorder=0)
+    confs = [0.75, 0.95, 0.99, 0.999]#1.0 - np.sum(refr).astype(np.float) / np.size(refr)]
+    cols = ['k', 'b', 'r', 'm']
+
+    w = np.array([proj_x, proj_y])
+    center = np.mean(data[:, w], axis=0)
+    covar = np.cov(data[:, w].T)
+
+    cvi = np.linalg.inv(covar)
+    cdata = data[:, w] - center
+    m = np.sum(np.dot(cdata, cvi) * cdata, axis=1)
+    pval = 1 - scipy.stats.chi2.cdf(m,1)
+    valid_angle = pval < 0.05
+
+    # Estimate the angle using 'inner' data
+    blah = data[valid_angle,:]; blah = data[:, w];
+    covar2 = np.cov(blah.T)
+    vals, vecs = np.linalg.eigh(covar2)
+    projv = vecs[0] / np.linalg.norm(vecs[0])
+    angle = np.arctan(projv[1] / projv[0])
+
+     # generate confidence ellipse
+    vals, vecs = np.linalg.eigh(covar)
+    # projection vector onto major axes
+    projmat = np.array([vecs[0] / np.linalg.norm(vecs[0]), vecs[1] / np.linalg.norm(vecs[1])])
+    projdat = np.dot(projmat, cdata.T).T
+
+    print 'Real eigen values', vals[0], vals[1]
+
+    rob = np.power(np.array([np.median(np.abs(projdat[:,0])) / 0.6745,
+        np.median(np.abs(projdat[:,1])) / 0.6745]),2)
+
+    print 'Median estimator eigen values',rob[0], rob[1]
+
+    ax.plot(data[:,proj_x], data[:,proj_y],
+#    ax.plot(projdat[:,0], projdat[:,1],
+                         marker='o', markersize=3,
+                        markerfacecolor='g', markeredgecolor='g',
+                        linestyle='None', zorder=0)
+
+    for i, (conf, col) in enumerate(zip(confs, cols)):
+        print 'Computing ellipse', i, ' -- ', conf, '% confidence interval'
+       # confidence intervals
+        kval = scipy.stats.chi2.ppf(conf, 1)  # 2d projection - 1 d.o.f.
+        # equal for ellipse is (x/vals[0])^2 + (y/vals[1])^2 = kval
+        # so width should be sqrt(kval * vals[0])
+        width = 2 * np.sqrt(kval * vals[0])
+        height = 2 * np.sqrt(kval * vals[1])
+        #ell = mpl.patches.Ellipse(center, width, height, 180 * (1 + angle /
+        ell = mpl.patches.Ellipse((0,0), width, height, 0, color=col, fill=False, zorder=i, linewidth=4)
+#        ell.set_alpha(0.3)
+#        ax.add_artist(ell)
+        width = 2 * np.sqrt(kval * rob[0])
+        height = 2 * np.sqrt(kval * rob[1])
+        ell = mpl.patches.Ellipse(center, width, height, 180 * (1 + angle /
+            np.pi), color=col,
+        #ell = mpl.patches.Ellipse((0,0), width, height, 0, color=col,
+                fill=False, zorder=i, linewidth=4, linestyle='dashed')
+#        ell.set_alpha(0.3)
+        ax.add_artist(ell)
+
+
+#    pylab.draw()
+
+    pylab.show()
+#    import ipdb; ipdb.set_trace()
+
+
+    pass
+
 if __name__ == "__main__":
     print "Loading dotspike"
 #    ss = loadDotSpike('TT22.spike')
-    ss = loadNtt('TT6_neo.ntt')
+    ss = loadNtt('TT2_neo.ntt')
 
-    d = ss.featureByName('PCA').data
+    data = ss.featureByName('Peak').data
 
-    import pylab
 
-    pylab.ion()
+    import boundaries
+    bound = boundaries.BoundaryEllipse2D(('Peak', 'Peak'), (0,1), (283.9, 181.3),
+            0.914, (130.8, 44.9))
+    clust = Cluster(ss)
+    clust.addBoundary(bound)
+    clust.calculateMembership(ss)
+    autotrim(data[clust.member,:], clust.refractory[clust.member])
+#    pylab.ion()
 
 #    pylab.plot(ss.spikes[1,:,])
 #    pylab.show()
 
-    from sklearn import mixture
-    g = mixture.GMM(n_components=8);
-    g.fit(d[:,1:2])
-    label = g.predict(d[:, 1:2])
+#    from sklearn import mixture
+#    g = mixture.GMM(n_components=8);
+#    g.fit(d[:,1:2])
+#    label = g.predict(d[:, 1:2])
 
 
-    pylab.scatter(d[0:500,1], d[0:500,2], s=5, c=label[0:500])
+#    pylab.scatter(d[0:500,1], d[0:500,2], s=5, c=label[0:500])
 
-    import pdb; pdb.set_trace()
-    g = mixture.GMM(n_components=10, cvtype='full')
+#    import ipdb; ipdb.set_trace()
+#    g = mixture.GMM(n_components=10, cvtype='full')
 
-    g.fit(data)
+#    g.fit(data)
 #    Out[171]: GMM(cvtype='full', n_components=10)
 #
 #    label = g.predict(data)

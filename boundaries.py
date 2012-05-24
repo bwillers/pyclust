@@ -21,6 +21,7 @@ class BoundaryPolygon2D(Boundary):
         self.features = featureNames
         self.chans = featureChans
         self.bounds = bounds
+        self.special_info = None # might need things like PCA coefficients
 
     def withinBoundary(self, spikeset):
         px = spikeset.featureByName(self.features[0]).data[:, self.chans[0]]
@@ -37,6 +38,24 @@ class BoundaryPolygon2D(Boundary):
                 bound[i:i + 2, 1], color=color, linestyle=linestyle)
             axes.add_line(line)
 
+# Helper functions
+def ellipseFromCovariance(covar):
+    vals, vecs = np.linalg.eigh(covar)
+    ind = np.argsort(vals)[::-1]  # descending sort
+    vals = vals[ind]
+    vecs = vecs[ind,:]
+    projv = vecs[0] / np.linalg.norm(vecs[0])
+    angle = np.arctan2(projv[1], projv[0])
+    radiusx = np.sqrt(vals[0])
+    radiusy = np.sqrt(vals[1])
+    return(angle, radiusx, radiusy)
+
+def covarianceFromEllipse(angle, radiusx, radiusy):
+    # eigen vectors as columns
+    u = np.array([[np.cos(angle), -np.sin(angle)],
+        [np.sin(angle), np.cos(angle)]])
+    d = np.array([[radiusx ** 2, 0], [0, radiusy ** 2]])
+    return np.dot(np.dot(u, d), np.linalg.inv(u))
 
 # 2D Elliptical boundary
 class BoundaryEllipse2D(Boundary):
@@ -48,6 +67,7 @@ class BoundaryEllipse2D(Boundary):
         self.center = center
         self.angle = angle
         self.size = size
+        self.special_info = None
 
     def withinBoundary(self, spikeset):
         px = spikeset.featureByName(self.features[0]).data[:, self.chans[0]]
@@ -75,3 +95,15 @@ class BoundaryEllipse2D(Boundary):
                 self.size[1] * 2.0, 180 * self.angle / np.pi, color=color,
                 linestyle=linestyle,  fill=False)
         axes.add_artist(ell)
+
+if __name__ == '__main__':
+    a = np.pi/5
+    rx = 3.0
+    ry = 1.0
+    print a * 180 / np.pi, rx, ry
+    cov = covarianceFromEllipse(a, rx, ry)
+    print cov
+    angle, rx, ry = ellipseFromCovariance(cov)
+    print angle * 180 / np.pi, rx, ry
+    print np.mod(np.abs(angle - a), 2 * np.pi) * 180 / np.pi
+

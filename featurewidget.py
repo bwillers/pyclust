@@ -8,7 +8,7 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
 
 import numpy as np
-import matplotlib as mpl
+#import matplotlib as mpl
 
 from matplotlib import rcParams
 rcParams['font.size'] = 9
@@ -62,9 +62,11 @@ class ProjectionWidget(Canvas):
         self.limit_mode = False
         self.limit_cluster = None
         self.limit_type = 2 # 1 = polygon, 2 = ellipse
+        self.limit_data = []
         self.mpl_connect('button_press_event', self.onMousePress)
         self.mpl_connect('button_release_event', self.onMouseRelease)
         self.mpl_connect('motion_notify_event', self.onMouseMove)
+
 
     @pyqtSignature("setShowUnclustered(bool)")
     def setShowUnclustered(self, show):
@@ -334,18 +336,41 @@ class ProjectionWidget(Canvas):
 
         # complete the ellipse boundary
         if event.button == 3 and self.limit_mode and self.limit_type == 2:
+            t = lambda s: self.axes.transData.transform(s)
+
+            # We need to map the ellipse from display coordinates to
+            # data coordinates, do this through the matrix form of the
+            # ellipse equation
             center = self.limit_data[0]
-            vc = np.array(center)
-            va = np.array(self.limit_data[1])
-            vm = np.array((event.xdata, event.ydata))
+            vc = np.array(t(center))
+            va = np.array(t(self.limit_data[1]))
+            vm = np.array(t((event.xdata, event.ydata)))
 
             angvec = va - vc
             angle = np.arctan2(angvec[1], angvec[0])
-            width = np.linalg.norm(angvec)
-
+            ewidth = np.linalg.norm(angvec)
+            angvec = angvec / ewidth
             mvec = vm - vc
-            angvec = angvec / width
-            height = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
+            eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
+
+            # define the mapping from view to data coordinate scaling
+            xlim = self.axes.get_xlim()
+            ylim = self.axes.get_ylim()
+
+            xlimv = [x for x,y in t([(xlim[0], ylim[0]), (xlim[1], ylim[0])])]
+            ylimv = [y for x,y in t([(xlim[0], ylim[0]), (xlim[0], ylim[1])])]
+
+            scaleX = np.diff(xlim) / np.diff(xlimv)
+            scaleY = np.diff(ylim) / np.diff(ylimv)
+
+            mapping = np.array([[1.0/scaleX, 0.0], [0.0, 1.0/scaleY]])
+
+            cdsp = np.linalg.inv(
+                    boundaries.covarianceFromEllipse(angle, ewidth, eheight))
+            cdat = np.dot(np.dot(mapping, cdsp), mapping.T)
+
+            (angle, width, height) = boundaries.ellipseFromCovariance(
+                    np.linalg.inv(cdat))
 
             bound = boundaries.BoundaryEllipse2D(
                     (self.feature_x, self.feature_y),
@@ -371,8 +396,10 @@ class ProjectionWidget(Canvas):
     def onMouseMove(self, event):
         if self.limit_mode:
             self._mouse_move_event = event
+            self.draw()
             self.repaint()
-        if (not self.limit_mode) and self.zoom_active:
+        if (not self.limit_mode) and self.zoom_active and \
+                (event.xdata != None and event.ydata != None):
             # draw rectangle is in the qt coordinates,
             # so we need a little conversion
             height = self.figure.bbox.height
@@ -390,15 +417,10 @@ class ProjectionWidget(Canvas):
     # boundary creation as required
     def paintEvent(self, event):
         Canvas.paintEvent(self, event)
-
         if not self.limit_mode:
             return
 
-        qp = QPainter()
-
-        qp.begin(self)
-        qp.setPen(QColor(*self.limit_color))
-        # convert to data units
+       # convert to data units
         height = self.figure.bbox.height
         t = lambda s: self.axes.transData.transform(s)
 
@@ -440,15 +462,18 @@ class ProjectionWidget(Canvas):
                 mvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
 
-            if self.limit_data:
-                qp.translate(center[0], height - center[1])
-                qp.rotate(-angle * 180.0 / np.pi)
+        if self.limit_data:
+            qp = QPainter()
 
-                qp.drawEllipse(QPoint(0,0), ewidth, eheight)
-                qp.drawLine(-ewidth, 0, ewidth, 0)
-                qp.drawLine(0, -eheight, 0, eheight)
+            qp.begin(self)
+            qp.setPen(QColor(*self.limit_color))
+            qp.translate(center[0], height - center[1])
+            qp.rotate(-angle * 180.0 / np.pi)
+            qp.drawEllipse(QPoint(0,0), ewidth, eheight)
+            qp.drawLine(-ewidth, 0, ewidth, 0)
+            qp.drawLine(0, -eheight, 0, eheight)
+            qp.end()
 
-        qp.end()
 
     # Start drawing a boundary for a cluster
     def drawBoundary(self, color):
