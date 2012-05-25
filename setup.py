@@ -17,6 +17,7 @@ opts = {
     "py2exe": {
         "includes":includes,
         "excludes":excludes
+#        "dll_excludes":["MSVCP90.dll"]
     }
 }
 

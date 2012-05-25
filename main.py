@@ -761,18 +761,27 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.t_bin_centers = ((self.t_bins[0:-1] + self.t_bins[1:]) / 2
              - self.spikeset.time[0]) / 60e6
 
-        # Set the combo boxes to the current feature for now
-
-        self.ui.comboBox_feature_x.clear()
-        for name in self.spikeset.featureNames():
-            self.ui.comboBox_feature_x.addItem(name)
-
         # Reset the limits
         self.junk_cluster = spikeset.Cluster(self.spikeset)
         self.junk_cluster.color = (255, 0, 0)
         self.junk_cluster.check = self.checkBox_junk
         self.checkBox_junk.setChecked(True)
         self.radioButton_junk.cluster_reference = self.junk_cluster
+
+        # If we're going to auto-load boundaries might as well
+        # use the stored info for PCA
+        (root, ext) = os.path.splitext(str(fname))
+        boundfilename = root + os.extsep + 'bounds'
+        if os.path.exists(boundfilename):
+            print "Found boundary file", boundfilename
+            self.importBounds(boundfilename)
+        else:
+            self.spikeset.calculateFeatures()
+
+        # Set the combo boxes to the current feature for now
+        self.ui.comboBox_feature_x.clear()
+        for name in self.spikeset.featureNames():
+            self.ui.comboBox_feature_x.addItem(name)
 
         self.redrawing_proj = False
         self.updateFeaturePlot()
@@ -789,12 +798,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         if fname:
             self.load_spikefile(str(fname))
-            (root, ext) = os.path.splitext(str(fname))
-            boundfilename = root + os.extsep + 'bounds'
-            if os.path.exists(boundfilename):
-                print "Found boundary file", boundfilename
-                self.importBounds(boundfilename)
-
     def updateFeaturePlot(self):
         if self.redrawing_proj:
             return
@@ -930,6 +933,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         outfilename = root + os.extsep + 'bounds'
         outfile = open(outfilename, 'wb')
 
+        # save special info about the features, such as PCA coeffs
+        pickle.dump(self.spikeset.feature_special, outfile)
+
         save_bounds = [(cluster.color, cluster.bounds, cluster.wave_bounds,
             cluster.add_bounds, cluster.del_bounds)
             for cluster in self.clusters]
@@ -967,6 +973,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         if os.path.exists(filename):
             infile = open(filename, 'rb')
+            special = pickle.load(infile)
+            self.spikeset.calculateFeatures(special)
+
             saved_bounds = pickle.load(infile)
             infile.close()
             print "Found", len(saved_bounds),

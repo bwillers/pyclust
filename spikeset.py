@@ -132,11 +132,22 @@ class Spikeset:
         self.peak_index = peak_index
         self.fs = sampling_frequency
         self.dt_ms = 1000.0 / self.fs
+        self.T = (max(self.time) - min(self.time)) / 1e6
+
+    def calculateFeatures(self, special=None):
+        print "Computing features"
+        if not special:
+            self.feature_special = dict()
+            self.feature_special['PCA'] = None
+        else:
+            self.feature_special = special
+
         self.features = [features.Feature_Peak(self), features.Feature_Energy(self),
             features.Feature_Time(self), features.Feature_Valley(self),
             features.Feature_Barycenter(self), features.Feature_FallArea(self),
-            features.Feature_PCA(self)]
-        self.T = (max(self.time) - min(self.time)) / 1e6
+            features.Feature_PCA(self, self.feature_special['PCA'])]
+
+        self.feature_special['PCA'] = self.features[6].coeff
 
     def __del__(self):
         print "Spikeset object being destroyed"
@@ -393,8 +404,9 @@ def autotrim(data, refr, projused=(0,1)):
 
 if __name__ == "__main__":
     print "Loading dotspike"
-#    ss = loadDotSpike('TT22.spike')
-    ss = loadNtt('TT2_neo.ntt')
+    ss = loadDotSpike('TT22.spike')
+    ss.calculateFeatures()
+#    ss = loadNtt('TT2_neo.ntt')
 
     data = ss.featureByName('Peak').data
 

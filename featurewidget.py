@@ -424,6 +424,10 @@ class ProjectionWidget(Canvas):
         height = self.figure.bbox.height
         t = lambda s: self.axes.transData.transform(s)
 
+        qp = QPainter()
+        qp.begin(self)
+        qp.setPen(QColor(*self.limit_color))
+
         # Draw polygon
         if self.limit_mode and self.limit_type == 1:
             for i in range(len(self.limit_data) - 1):
@@ -462,17 +466,15 @@ class ProjectionWidget(Canvas):
                 mvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
 
-        if self.limit_data:
-            qp = QPainter()
+            if self.limit_data:
 
-            qp.begin(self)
-            qp.setPen(QColor(*self.limit_color))
-            qp.translate(center[0], height - center[1])
-            qp.rotate(-angle * 180.0 / np.pi)
-            qp.drawEllipse(QPoint(0,0), ewidth, eheight)
-            qp.drawLine(-ewidth, 0, ewidth, 0)
-            qp.drawLine(0, -eheight, 0, eheight)
-            qp.end()
+                qp.translate(center[0], height - center[1])
+                qp.rotate(-angle * 180.0 / np.pi)
+                qp.drawEllipse(QPoint(0,0), ewidth, eheight)
+                qp.drawLine(-ewidth, 0, ewidth, 0)
+                qp.drawLine(0, -eheight, 0, eheight)
+
+        qp.end()
 
 
     # Start drawing a boundary for a cluster

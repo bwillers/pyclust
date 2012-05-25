@@ -198,13 +198,11 @@ def PCA(data, numcomponents = 3):
 
 
 class Feature_PCA(Feature):
-    def __init__(self, spikeset):
+    def __init__(self, spikeset, coeff = None):
+        self.coeff = coeff
         Feature.__init__(self, 'PCA', spikeset)
 
-    def calculate(Self, spikeset):
-#        wv = np.reshape(spikeset.spikes, (np.size(spikeset.spikes,0),
-#            np.size(spikeset.spikes,1) * np.size(spikeset.spikes,2)),
-#          order='F')
+    def calculate(self, spikeset):
         p = Feature_Peak(spikeset)
         p = p.data
         v = Feature_Valley(spikeset)
@@ -213,11 +211,18 @@ class Feature_PCA(Feature):
         t = t.data
         e = Feature_Energy(spikeset)
         e = e.data
-        print "Calculating waveform PCA",
-        t1 = time.clock()
-        a = PCA(np.hstack((p,np.sqrt(e), v, t)),6)[0]
-        t2 = time.clock()
-        print "took", (t2-t1), "seconds."
-        #3import pdb; pdb.set_trace()
-        return a
+        inputdata = np.hstack((p, np.sqrt(e), v, t))
+        if self.coeff != None:  # See if we were given projection components
+            scores = np.dot(inputdata, self.coeff)
+        else:
+#        wv = np.reshape(spikeset.spikes, (np.size(spikeset.spikes,0),
+#            np.size(spikeset.spikes,1) * np.size(spikeset.spikes,2)),
+#          order='F')
+            print "Calculating waveform PCA",
+            t1 = time.clock()
+            scores, coeff, stx = PCA(inputdata, 6)
+            self.coeff = coeff
+            t2 = time.clock()
+            print "took", (t2-t1), "seconds."
+        return scores
 
