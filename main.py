@@ -36,6 +36,52 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.stackedWidget.setCurrentIndex(0)
         self.updateFeaturePlot()
 
+    def switch_to_autotrim(self):
+        active = self.activeClusterRadioButton()
+        if active and active.cluster_reference != self.junk_cluster:
+            clust = active.cluster_reference
+            self.trim_cluster = spikeset.Cluster(self.spikeset)
+            self.trim_cluster.color = clust.color
+            self.trim_cluster.bounds = clust.bounds
+            self.trim_cluster.calculateMembership(self.spikeset)
+
+            self.ui.stackedWidget.setCurrentIndex(2)
+
+            self.ui.pushButton_autotrim_apply.setEnabled(False)
+            self.ui.pushButton_autotrim_cancel.setEnabled(False)
+            self.ui.mplwidget_autotrim.figure.clear()
+
+            current_x = str(self.ui.comboBox_feature_x.currentText())
+            clust.autotrim(
+                    self.spikeset, fname=current_x,
+                    canvas = self.ui.mplwidget_autotrim)
+
+            self.updateClusterDetailPlots()
+
+            self.ui.pushButton_autotrim_apply.setEnabled(True)
+            self.ui.pushButton_autotrim_cancel.setEnabled(True)
+
+    def autotrim_apply(self):
+        self.trim_cluster = None
+
+        self.updateFeaturePlot()
+        self.updateClusterDetailPlots()
+        self.ui.stackedWidget.setCurrentIndex(0)
+
+    def autotrim_cancel(self):
+        clust = self.activeClusterRadioButton().cluster_reference
+        clust.bounds = self.trim_cluster.bounds
+#        for bound in self.trim_cluster.bounds:
+#            clust.addBoundary(bound)
+        clust.calculateMembership(self.spikeset)
+
+        self.trim_cluster = None
+
+        self.updateFeaturePlot()
+        self.updateClusterDetailPlots()
+        self.ui.stackedWidget.setCurrentIndex(0)
+
+
     def __init__(self, parent=None):
         QtGui.QWidget.__init__(self, parent)
 
@@ -141,6 +187,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
             lambda x: self.updateWavecutterPlot() if x == 0 \
                 else self.updateOutlierPlot())
 
+        self.ui.pushButton_autotrim.clicked.connect(self.switch_to_autotrim)
+        self.ui.pushButton_autotrim_apply.clicked.connect(self.autotrim_apply)
+        self.ui.pushButton_autotrim_cancel.clicked.connect(self.autotrim_cancel)
+
         # Set up the cluster list area
         self.labels_container = QtGui.QWidget()
         self.ui.scrollArea_cluster_list.setWidget(self.labels_container)
@@ -192,6 +242,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_proj.setAutoFillBackground(True)
         self.mp_proj.setObjectName("mplwidget_projection")
         self.ui.verticalLayout_3.addWidget(self.mp_proj)
+
 
         # Connect the relevant signals/slots
         # Signals for unclustered show checkbox
@@ -258,6 +309,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.mp_drift.figure.clear()
         self.mp_drift.figure.set_facecolor(bgcolor)
+
+        # Set up autotrim plot
+        self.ui.mplwidget_autotrim.figure.clear()
+        self.ui.mplwidget_autotrim.figure.set_facecolor(bgcolor)
 
         self.wave_limit_mode = False
         self.mp_wavecutter.mpl_connect('button_press_event',
@@ -329,6 +384,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_outlier.figure.clear()
         self.mp_outlier.axes = self.mp_outlier.figure.add_subplot(1, 1, 1)
         self.mp_outlier.draw()
+
+        # Set up autotrim plot
+        self.ui.mplwidget_autotrim.figure.subplots_adjust(bottom=0, top=1,
+                left=0, right=1, hspace=0.01, wspace=0.01)
 
         # Clear the stats labels
 

@@ -47,16 +47,6 @@ class Feature:
                 return range(0, self.channels - 1)
 
 
-#class Feature_Peak(Feature):
-#    def __init__(self, spikeset):
-#        Feature.__init__(self, 'Peak', spikeset)
-#        self.valid_y_same_chan.append('Energy')
-#        self.valid_y_same_chan.append('Valley')
-#
-#    def calculate(self, spikeset):
-#        return np.max(spikeset.spikes, axis=1)
-
-
 class Feature_Valley(Feature):
     def __init__(self, spikeset):
         Feature.__init__(self, 'Valley', spikeset)
@@ -68,6 +58,7 @@ class Feature_Valley(Feature):
 class Feature_Trough(Feature):
     def __init__(self, spikeset):
         Feature.__init__(self, 'Trough', spikeset)
+        self.valid_y_same_chan.append('Valley')
 
     def calculate(self, spikeset):
         return np.min(spikeset.spikes[:, :spikeset.peak_index+1, :], axis=1)
@@ -203,26 +194,24 @@ class Feature_PCA(Feature):
         Feature.__init__(self, 'PCA', spikeset)
 
     def calculate(self, spikeset):
-        p = Feature_Peak(spikeset)
-        p = p.data
-        v = Feature_Valley(spikeset)
-        v = v.data
-        t = Feature_Trough(spikeset)
-        t = t.data
-        e = Feature_Energy(spikeset)
-        e = e.data
+        p = spikeset.featureByName('Peak').data
+        v = spikeset.featureByName('Valley').data
+        t = spikeset.featureByName('Trough').data
+        e = np.sqrt(spikeset.featureByName('Energy').data)
         inputdata = np.hstack((p, np.sqrt(e), v, t))
         if self.coeff != None:  # See if we were given projection components
             scores = np.dot(inputdata, self.coeff)
         else:
-#        wv = np.reshape(spikeset.spikes, (np.size(spikeset.spikes,0),
-#            np.size(spikeset.spikes,1) * np.size(spikeset.spikes,2)),
-#          order='F')
-            print "Calculating waveform PCA",
+            print "Calculating feature based PCA",
             t1 = time.clock()
-            scores, coeff, stx = PCA(inputdata, 6)
+            M = 50000
+            if spikeset.N > M:
+                perm = np.random.permutation(spikeset.N)
+                scores, coeff, stx = PCA(inputdata[perm[0:M],:], 6)
+                scores = np.dot(inputdata, coeff)
+            else:
+                scores, coeff, stx = PCA(inputdata, 6)
             self.coeff = coeff
             t2 = time.clock()
             print "took", (t2-t1), "seconds."
         return scores
-

@@ -8,9 +8,14 @@ import random
 import struct
 
 import scipy.special as spspec
+import scipy.stats
 import numpy as np
+import pylab
+import sklearn.mixture
+import matplotlib as mpl
 
 import features
+import boundaries
 
 # pickle needs this to load the saved bounds
 from boundaries import BoundaryPolygon2D
@@ -122,6 +127,7 @@ def load(filename):
 
 # convention: N number of spikes, C number of channels, L length of waveforms
 
+use_pca = True #False
 
 # Spike data is N x L x C
 class Spikeset:
@@ -142,12 +148,20 @@ class Spikeset:
         else:
             self.feature_special = special
 
-        self.features = [features.Feature_Peak(self), features.Feature_Energy(self),
-            features.Feature_Time(self), features.Feature_Valley(self),
-            features.Feature_Barycenter(self), features.Feature_FallArea(self),
-            features.Feature_PCA(self, self.feature_special['PCA'])]
+        self.features = []
+        self.features.append(features.Feature_Peak(self))
+        self.features.append(features.Feature_Energy(self))
+        self.features.append(features.Feature_Time(self))
+        self.features.append(features.Feature_Valley(self))
+        self.features.append(features.Feature_Trough(self))
 
-        self.feature_special['PCA'] = self.features[6].coeff
+        #    features.Feature_Barycenter(self),
+        #    features.Feature_FallArea(self)]
+
+        if use_pca:
+            self.features.append(
+                    features.Feature_PCA(self, self.feature_special['PCA']))
+            self.feature_special['PCA'] = self.featureByName('PCA').coeff
 
     def __del__(self):
         print "Spikeset object being destroyed"
@@ -227,8 +241,9 @@ class Cluster:
 
         # start with everything and cut it down
         for bound in self.bounds:
-            self.member = np.logical_and(self.member,
-                bound.withinBoundary(spikeset))
+            w = self.member
+            self.member[w] = np.logical_and(self.member[w],
+                bound.withinBoundary(spikeset, subset=w))
 
         for (chan, sample, lower_bound, upper_bound) in self.wave_bounds:
             w = np.logical_and(
@@ -317,170 +332,133 @@ class Cluster:
         except Exception:
             self.mahal = np.NAN
 
+    def autotrim(self, spikeset, fname='Peak', confidence=None, canvas=None):
+        chans = spikeset.featureByName(fname).data.shape[1]
+        projs = []
+        for x in range(0,chans):
+            for y in range(x+1,chans):
+                if len(self.getBoundaries(fname, x, fname, y)) == 0:
+                    projs.append((x,y))
 
-def autotrim(data, refr, projused=(0,1)):
-    """docstring for autotrim"""
-    import scipy.stats
-    import matplotlib as mpl
-    import pylab
-#    from sklearn import mixture
-#    g = mixture.GMM(n_components=1)
-    proj_x = 0
-    proj_y = 2
+        combs = scipy.misc.comb(chans, 2)
 
-    ax = pylab.subplot(1,1,1)
+        plots_x = np.ceil(np.sqrt(combs))
+        plots_y = np.ceil(float(combs) / plots_x)
 
-#                         marker='o', markersize=1,
-#                        markerfacecolor='g', markeredgecolor='g',
-#                        linestyle='None', zorder=0)
-    confs = [0.75, 0.95, 0.99, 0.999]#1.0 - np.sum(refr).astype(np.float) / np.size(refr)]
-    cols = ['k', 'b', 'r', 'm']
+        col = np.array(self.color) / 255.0
+        data = spikeset.featureByName(fname).data[self.member,:]
+        refr = self.refractory[self.member]
 
-    w = np.array([proj_x, proj_y])
-    center = np.mean(data[:, w], axis=0)
-    covar = np.cov(data[:, w].T)
+        counter = 0
+        for proj_x in range(0, chans):
+            for proj_y in range(proj_x + 1, chans):
+                counter = counter + 1
+                ax = canvas.figure.add_subplot(plots_y, plots_x,counter)
+                ax.plot(data[:,proj_x], data[:,proj_y],
+                                 marker='o', markersize=1,
+                                 markerfacecolor=col, markeredgecolor=col,
+                                 linestyle='None', zorder=0)
+                ax.plot(data[refr, proj_x], data[refr, proj_y],
+                                marker='o', markersize=2,
+                                markerfacecolor='k', markeredgecolor='k',
+                                linestyle='None', zorder=1)
+                bounds = self.getBoundaries(fname, proj_x, fname, proj_y)
+                for bound in bounds:
+                    bound.draw(ax, color='k')
+        canvas.draw()
+        canvas.repaint()
 
-    cvi = np.linalg.inv(covar)
-    cdata = data[:, w] - center
-    m = np.sum(np.dot(cdata, cvi) * cdata, axis=1)
-    pval = 1 - scipy.stats.chi2.cdf(m,1)
-    valid_angle = pval < 0.05
+        print "Attempting to autotrim cluster on feature:", fname
 
-    # Estimate the angle using 'inner' data
-    blah = data[valid_angle,:]; blah = data[:, w];
-    covar2 = np.cov(blah.T)
-    vals, vecs = np.linalg.eigh(covar2)
-    projv = vecs[0] / np.linalg.norm(vecs[0])
-    angle = np.arctan(projv[1] / projv[0])
+        gmm = sklearn.mixture.DPGMM(n_components=10, covariance_type='full')
+        gmm.fit(data)
+        label = -1 * np.ones((spikeset.N))
+        temp = gmm.predict(data)
+        label[self.member] = temp
+        ind = np.argmax(np.bincount(temp))
+        maincomp = label == ind
 
-     # generate confidence ellipse
-    vals, vecs = np.linalg.eigh(covar)
-    # projection vector onto major axes
-    projmat = np.array([vecs[0] / np.linalg.norm(vecs[0]), vecs[1] / np.linalg.norm(vecs[1])])
-    projdat = np.dot(projmat, cdata.T).T
+        while True:
+            fitness = np.zeros((len(projs),2))
+            ellipses = []
 
-    print 'Real eigen values', vals[0], vals[1]
+            refr = self.refractory[self.member]
+            data = spikeset.featureByName(fname).data[self.member,:]
 
-    rob = np.power(np.array([np.median(np.abs(projdat[:,0])) / 0.6745,
-        np.median(np.abs(projdat[:,1])) / 0.6745]),2)
+            # Plot the current self.r state
+            counter = 0
+            for proj_x in range(0, chans):
+                for proj_y in range(proj_x + 1, chans):
+                    counter = counter + 1
+                    ax = canvas.figure.add_subplot(plots_y, plots_x,counter)
+                    bounds = self.getBoundaries(fname, proj_x, fname, proj_y)
+                    for bound in bounds:
+                        bound.draw(ax, color='k')
 
-    print 'Median estimator eigen values',rob[0], rob[1]
+            canvas.draw()
+            canvas.repaint()
 
-    ax.plot(data[:,proj_x], data[:,proj_y],
-#    ax.plot(projdat[:,0], projdat[:,1],
-                         marker='o', markersize=3,
-                        markerfacecolor='g', markeredgecolor='g',
-                        linestyle='None', zorder=0)
+            if len(projs) == 0:
+                break
 
-    for i, (conf, col) in enumerate(zip(confs, cols)):
-        print 'Computing ellipse', i, ' -- ', conf, '% confidence interval'
-       # confidence intervals
-        kval = scipy.stats.chi2.ppf(conf, 1)  # 2d projection - 1 d.o.f.
-        # equal for ellipse is (x/vals[0])^2 + (y/vals[1])^2 = kval
-        # so width should be sqrt(kval * vals[0])
-        width = 2 * np.sqrt(kval * vals[0])
-        height = 2 * np.sqrt(kval * vals[1])
-        #ell = mpl.patches.Ellipse(center, width, height, 180 * (1 + angle /
-        ell = mpl.patches.Ellipse((0,0), width, height, 0, color=col, fill=False, zorder=i, linewidth=4)
-#        ell.set_alpha(0.3)
-#        ax.add_artist(ell)
-        width = 2 * np.sqrt(kval * rob[0])
-        height = 2 * np.sqrt(kval * rob[1])
-        ell = mpl.patches.Ellipse(center, width, height, 180 * (1 + angle /
-            np.pi), color=col,
-        #ell = mpl.patches.Ellipse((0,0), width, height, 0, color=col,
-                fill=False, zorder=i, linewidth=4, linestyle='dashed')
-#        ell.set_alpha(0.3)
-        ax.add_artist(ell)
+            for iProj, (proj_x, proj_y) in enumerate(projs):
+                if np.any(refr):
+                    confs = np.array([1.0 - 0.5 * np.sum(refr).astype(np.float)
+                        / np.size(refr), 1.0 - 1.0 / np.size(data, axis=0),
+                        1.0 - 0.5 / np.size(data, axis=0)])
+                else:
+                    confs = np.array([1.0 - 0.01 / np.size(data, axis=0),
+                        1.0 - 0.5 / np.size(data, axis=0),
+                        1.0 - 0.1 / np.size(data, axis=0)])
+                # Sort them so we pick the biggest if fitness funcs are equal
+                confs = np.sort(confs)[::-1]
+                kvals = scipy.stats.chi2.ppf(confs,1)
+                # Select the data for this projection
+                pdata = data[:,[proj_x, proj_y]]
+                # Estimate the ellipse for the projection using the main comp
+                center, angle, size = boundaries.robustEllipseEstimator(
+                        pdata[maincomp[self.member],:])
+                # Compute fitness for different confidence intervals
+                proj_fitness = np.zeros((len(confs),))
+                for i, kval in enumerate(kvals):
+                    width = np.sqrt(kval) * size[0]
+                    height = np.sqrt(kval) * size[1]
+                    ww = np.logical_not(boundaries.pointsInsideEllipse(pdata,
+                        center, angle, (width, height)))
+                    proj_fitness[i] = np.sum(refr[ww]).astype(float) / np.sum(ww)
+                    if np.isinf(width) or np.isinf(height):
+                        import PyQt4.QtCore
+                        PyQt4.QtCore.pyqtRemoveInputHook()
+                        import ipdb
+                        ipdb.set_trace()
+                # Choose the maximal fitness confidence interval
+                ind = np.argmax(proj_fitness)
+                fitness[iProj,0] = proj_fitness[ind]
+                fitness[iProj,1] = confs[ind]
+                ellipses.append((center, angle, size * np.sqrt(kvals[ind])))
 
+            # Choose the best projection
+            ind = np.argmax(fitness[:,0])
+            print "Creating boundary on", fname, projs[ind][0], \
+                    "vs.", fname, projs[ind][1]
+            bound = boundaries.BoundaryEllipse2D((fname, fname),
+                    (projs[ind][0], projs[ind][1]), ellipses[ind][0],
+                    ellipses[ind][1], ellipses[ind][2])
+            # remove this from the list of unlimited projections
+            projs.remove(projs[ind])
+            self.addBoundary(bound)
+            self.calculateMembership(spikeset)
 
-#    pylab.draw()
-
-    pylab.show()
-#    import ipdb; ipdb.set_trace()
-
-
-    pass
 
 if __name__ == "__main__":
     print "Loading dotspike"
-    ss = loadDotSpike('TT22.spike')
+#    ss = loadDotSpike('TT22.spike')
+    ss = loadNtt('TT2_neo.ntt')
     ss.calculateFeatures()
-#    ss = loadNtt('TT2_neo.ntt')
 
-    data = ss.featureByName('Peak').data
-
-
-    import boundaries
     bound = boundaries.BoundaryEllipse2D(('Peak', 'Peak'), (0,1), (283.9, 181.3),
             0.914, (130.8, 44.9))
     clust = Cluster(ss)
     clust.addBoundary(bound)
     clust.calculateMembership(ss)
-    autotrim(data[clust.member,:], clust.refractory[clust.member])
-#    pylab.ion()
-
-#    pylab.plot(ss.spikes[1,:,])
-#    pylab.show()
-
-#    from sklearn import mixture
-#    g = mixture.GMM(n_components=8);
-#    g.fit(d[:,1:2])
-#    label = g.predict(d[:, 1:2])
-
-
-#    pylab.scatter(d[0:500,1], d[0:500,2], s=5, c=label[0:500])
-
-#    import ipdb; ipdb.set_trace()
-#    g = mixture.GMM(n_components=10, cvtype='full')
-
-#    g.fit(data)
-#    Out[171]: GMM(cvtype='full', n_components=10)
-#
-#    label = g.predict(data)
-#
-#    scatter(data[:,1], data[:,2], s=5, edgecolor='none', c=label)
-#    Out[173]: <matplotlib.collections.PathCollection at 0x19e88128>
-#
-#    scatter(data[:,0], data[:,1], s=5, edgecolor='none', c=label)
-#    Out[174]: <matplotlib.collections.PathCollection at 0x1a52d3c8>
-#
-#    scatter(data[:,0], data[:,2], s=5, edgecolor='none', c=label)
-#    Out[175]: <matplotlib.collections.PathCollection at 0x13fa79b0>
-#
-#    scatter(data[:,0], data[:,3], s=5, edgecolor='none', c=label)
-#    Out[176]: <matplotlib.collections.PathCollection at 0x1a313160>
-#
-#    scatter(data[:,1], data[:,3], s=5, edgecolor='none', c=label)
-#    Out[177]: <matplotlib.collections.PathCollection at 0x19da7b70>
-#
-    #loadDotSpike('TT22.spike')
-    #spikeset = loadNtt('Sample2.ntt')
-    #clust = Cluster(spikeset)
-    # (name_x, chan_x, name_Y, chan_y, polygon_points, extra_data)
-    #clust.addBound(('Peak', 0, 'Peak', 1, [[150, 100], [150, 150],
-    #    [100, 150], [100, 100]]))
-
-    #clust.calculateMembership(spikeset)
-
-    #pyplot.hist(np.sqrt(clust.mahal))
-
-    #x = np.array(range(1000))
-
-    #plot(chi2f(x,127))
-
-    #m = clust.mahal
-    #hold(False)
-    #hist(m, normed=True)
-    #hold(True)
-    #plot(x, chi2f(x,127), 'g', linewidth=3)
-
-    #test = mvtf(x, 1, 128, clust.cvd)
-    #plot(x, test, 'r', linewidth=3)
-
-    #k = 20;
-    #p = 128;
-    #cvd = clust.cvd
-
-    #del spikeset
-    pass
+    clust.autotrim(ss)
