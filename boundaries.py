@@ -125,8 +125,10 @@ class BoundaryEllipse2D(Boundary):
             linestyle = 'solid'
         elif linestyle == '--':
             linestyle = 'dashed'
-        else:
+        elif linestyle == '-.':
             linestyle = 'dashdot'
+        else:
+            linestyle = 'solid'
 
         ell = mpl.patches.Ellipse(self.center, self.size[0] * 2.0,
                 self.size[1] * 2.0, 180 * self.angle / np.pi, color=color,

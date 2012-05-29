@@ -6,6 +6,7 @@ Created on Fri Mar 30 04:18:30 2012
 """
 import random
 import struct
+import time
 
 import scipy.special as spspec
 import scipy.stats
@@ -13,6 +14,7 @@ import numpy as np
 import pylab
 import sklearn.mixture
 import matplotlib as mpl
+from PyQt4 import QtGui
 
 import features
 import boundaries
@@ -127,17 +129,17 @@ def load(filename):
 
 # convention: N number of spikes, C number of channels, L length of waveforms
 
-use_pca = True #False
-
 # Spike data is N x L x C
 class Spikeset:
-    def __init__(self, spikes, timestamps, peak_index, sampling_frequency):
+    def __init__(self, spikes, timestamps, peak_index, sampling_frequency,
+            use_pca=True, subject='Unknown', session='Unknown'):
         self.spikes = spikes
         self.time = timestamps
         self.N = len(timestamps)
         self.peak_index = peak_index
         self.fs = sampling_frequency
         self.dt_ms = 1000.0 / self.fs
+        self.use_pca = True
         self.T = (max(self.time) - min(self.time)) / 1e6
 
     def calculateFeatures(self, special=None):
@@ -158,7 +160,7 @@ class Spikeset:
         #    features.Feature_Barycenter(self),
         #    features.Feature_FallArea(self)]
 
-        if use_pca:
+        if self.use_pca:
             self.features.append(
                     features.Feature_PCA(self, self.feature_special['PCA']))
             self.feature_special['PCA'] = self.featureByName('PCA').coeff
@@ -368,6 +370,7 @@ class Cluster:
         canvas.draw()
         canvas.repaint()
 
+        QtGui.QApplication.processEvents()
         print "Attempting to autotrim cluster on feature:", fname
 
         gmm = sklearn.mixture.DPGMM(n_components=10, covariance_type='full')
@@ -385,25 +388,15 @@ class Cluster:
             refr = self.refractory[self.member]
             data = spikeset.featureByName(fname).data[self.member,:]
 
-            # Plot the current self.r state
-            counter = 0
-            for proj_x in range(0, chans):
-                for proj_y in range(proj_x + 1, chans):
-                    counter = counter + 1
-                    ax = canvas.figure.add_subplot(plots_y, plots_x,counter)
-                    bounds = self.getBoundaries(fname, proj_x, fname, proj_y)
-                    for bound in bounds:
-                        bound.draw(ax, color='k')
-
-            canvas.draw()
-            canvas.repaint()
-
             if len(projs) == 0:
                 break
 
             for iProj, (proj_x, proj_y) in enumerate(projs):
                 if np.any(refr):
-                    confs = np.array([1.0 - 0.5 * np.sum(refr).astype(np.float)
+                    confs = np.array([0.999,
+                        1.0 - (10.0 * np.sum(refr)) /
+                        np.size(refr), 1.0 - (1.0 * np.sum(refr)) /
+                        np.size(refr), 1.0 - (0.5 * np.sum(refr))
                         / np.size(refr), 1.0 - 1.0 / np.size(data, axis=0),
                         1.0 - 0.5 / np.size(data, axis=0)])
                 else:
@@ -444,10 +437,43 @@ class Cluster:
             bound = boundaries.BoundaryEllipse2D((fname, fname),
                     (projs[ind][0], projs[ind][1]), ellipses[ind][0],
                     ellipses[ind][1], ellipses[ind][2])
-            # remove this from the list of unlimited projections
-            projs.remove(projs[ind])
+
             self.addBoundary(bound)
+
+            # Plot the current cluster state
+            counter = 0
+            for proj_x in range(0, chans):
+                for proj_y in range(proj_x + 1, chans):
+                    counter = counter + 1
+                    if proj_x == projs[ind][0] and proj_y == projs[ind][1]:
+                        sindex = counter
+            # Figure out which subplot we're on
+            proj_x = projs[ind][0]
+            proj_y = projs[ind][1]
+            ax = canvas.figure.add_subplot(plots_y, plots_x, sindex)
+            ax.cla()
+            tdata = spikeset.featureByName(fname).data
+            ax.plot(tdata[self.member,proj_x], tdata[self.member,proj_y],
+                             marker='o', markersize=1,
+                             markerfacecolor=col, markeredgecolor=col,
+                             linestyle='None', zorder=0)
+            ax.plot(tdata[self.refractory, proj_x],
+                    tdata[self.refractory, proj_y],
+                            marker='o', markersize=2,
+                            markerfacecolor='k', markeredgecolor='k',
+                            linestyle='None', zorder=1)
+
+            bounds = self.getBoundaries(fname, proj_x, fname, proj_y)
+            for bound in bounds:
+                bound.draw(ax, color='k')
+
+            canvas.draw()
+            canvas.repaint()
+            QtGui.QApplication.processEvents()
+
+            # remove this from the list of unlimited projections
             self.calculateMembership(spikeset)
+            projs.remove(projs[ind])
 
 
 if __name__ == "__main__":

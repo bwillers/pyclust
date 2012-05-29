@@ -21,10 +21,127 @@ import sys
 import time
 
 from gui import Ui_MainWindow
+from gui_sessiontracker import Ui_SessionTrackerDialog
 import spikeset
 import featurewidget
 #import features
 
+class PyClustSessionTrackerDialog(QtGui.QDialog):
+
+    def __del__(self):
+        print "Session Tracker Dialog being destroy"
+
+    def __init__(self, spikeset_ref, cluster_ref,
+            spikeset_comp, cluster_comp, parent=None):
+        QtGui.QDialog.__init__(self, parent)
+
+        self.spikeset = spikeset_ref
+        self.clusters = cluster_ref
+
+        self.spikeset_comp = spikeset_comp
+        self.clusters_comp = cluster_comp
+
+        self.p1 = spikeset_ref.featureByName('Peak').data
+        self.p2 = spikeset_comp.featureByName('Peak').data
+
+        self.step_r = 0
+        self.step_c = 0
+
+        self.ui = Ui_SessionTrackerDialog()
+        self.ui.setupUi(self)
+
+        self.figure = self.ui.mplwidget.figure
+        self.figure.clear()
+        self.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
+            bottom=0, top=1, left=0.0, right=1)
+
+        self.member_ref = np.any(np.column_stack(tuple([cluster.member
+            for cluster in self.clusters])), axis=1)
+        self.member_comp = np.any(np.column_stack(tuple([cluster.member
+            for cluster in self.clusters_comp])), axis=1)
+
+        self.updatePlot()
+
+    def accept(self):
+
+        if len(self.clusters_comp) == (self.step_c + 1) and \
+            len(self.clusters) == (self.step_r + 1):
+                QtGui.QDialog.accept(self)
+        elif len(self.clusters_comp) == (self.step_c + 1):
+            self.step_r += 1
+            self.step_c = 0
+            self.updatePlot()
+        else:
+            self.step_c += 1
+            self.updatePlot()
+
+    def updatePlot(self):
+        gcol = (0.5, 0.5, 0.5)
+        dgcol = (0.3, 0.3, 0.3)
+        clust1 = self.clusters[self.step_r]
+        ccol = map(lambda s: s / 255.0, clust1.color)
+        clust2 = self.clusters_comp[self.step_c]
+
+        counter = 0
+        for proj_x in range(0,4):
+            for proj_y in range(proj_x+1,4):
+                counter = counter + 1
+                ax = self.figure.add_subplot(2, 3, counter)
+                ax.cla()
+                # Plot things that belong to no cluster
+                ax.plot(self.p1[np.logical_not(self.member_ref),proj_x],
+                        self.p1[np.logical_not(self.member_ref),proj_y],
+                                 marker='.', markersize=1,
+                                 markerfacecolor=gcol,
+                                 markeredgecolor=gcol,
+                                 linestyle='None', zorder=0)
+                ax.plot(self.p2[np.logical_not(self.member_comp),proj_x],
+                        self.p2[np.logical_not(self.member_comp),proj_y],
+                                 marker='.', markersize=1,
+                                 markerfacecolor=gcol,
+                                 markeredgecolor=gcol,
+                                 linestyle='None', zorder=0)
+
+                # Plot things belonging to other clusters
+                w = np.logical_and(self.member_ref,
+                        np.logical_not(clust1.member))
+                ax.plot(self.p1[w,proj_x], self.p1[w,proj_y],
+                                 marker='.', markersize=1,
+                                 markerfacecolor=dgcol,
+                                 markeredgecolor=dgcol,
+                                 linestyle='None', zorder=1)
+
+                w = np.logical_and(self.member_comp,
+                        np.logical_not(clust2.member))
+                ax.plot(self.p2[w,proj_x], self.p2[w,proj_y],
+                                 marker='.', markersize=1,
+                                 markerfacecolor=dgcol,
+                                 markeredgecolor=dgcol,
+                                 linestyle='None', zorder=1)
+
+                # Plot things belonging to these clusters
+                ax.plot(self.p1[clust1.member,proj_x],
+                        self.p1[clust1.member,proj_y],
+                                 marker='.', markersize=3,
+                                 markerfacecolor=ccol,
+                                 markeredgecolor=ccol,
+                                 linestyle='None', zorder=3)
+                ax.plot(self.p2[clust2.member,proj_x],
+                        self.p2[clust2.member,proj_y],
+                                 marker='.', markersize=3,
+                                 markerfacecolor='k',
+                                 markeredgecolor='k',
+                                 linestyle='None', zorder=3)
+
+                # Draw the boundaries
+                for bound in clust1.getBoundaries('Peak', proj_x,
+                        'Peak', proj_y):
+                    bound.draw(ax, color=ccol, linestyle='--')
+                for bound in clust2.getBoundaries('Peak', proj_x,
+                        'Peak', proj_y):
+                    bound.draw(ax, color='k', linestyle='-.')
+
+        self.ui.mplwidget.draw()
 
 class PyClustMainWindow(QtGui.QMainWindow):
 
@@ -81,9 +198,54 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateClusterDetailPlots()
         self.ui.stackedWidget.setCurrentIndex(0)
 
+    def switch_to_sessiontracker(self):
+        dialog = PyClustSessionTrackerDialog(self.spikeset, self.clusters,
+               self.spikeset, self.clusters)
+        dialog.showMaximized()
+        dialog.exec_()
+
+        return
+        #Prompt for a filename for the comparison spikeset
+        fname = QtGui.QFileDialog.getOpenFileName(self,
+            'Open ntt file',
+            filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
+
+        if fname:
+            (root, ext) = os.path.splitext(str(fname))
+            boundfilename = root + os.extsep + 'bounds'
+            if not os.path.exists(boundfilename):
+                # Should probably display a message at some point
+                return
+
+            print "Loading comparison spikeset"
+            infile = open(boundfilename, 'rb')
+            special = pickle.load(infile)
+#            self.spikeset.calculateFeatures(special)
+            saved_bounds = pickle.load(infile)
+            infile.close()
+
+            print "Loading comparison clusters"
+            ss_comp = spikeset.load(str(fname))
+            ss_comp.calculateFeatures(special)
+
+            clusters_comp = []
+
+            for (col, bound, wave_bound, add_bound, del_bound) in saved_bounds:
+                clust = spikeset.Cluster(ss_comp)
+                clust.bounds = bound
+                clust.wave_bounds = wave_bound
+                clust.add_bounds = add_bound
+                clust.del_bounds = del_bound
+                clust.calculateMembership(ss_comp)
+                clusters_comp.append(clust)
+
+            dialog = PyClustSessionTrackerDialog(self.spikeset, self.clusters,
+                   ss_comp, clusters_comp)
+            dialog.showMaximized()
+            dialog.exec_()
 
     def __init__(self, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtGui.QMainWindow.__init__(self, parent)
 
         self.redrawing_proj = True
 
@@ -103,6 +265,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.unsaved = False
 
         # Connect the handlers
+        self.ui.pushButton_identify.clicked.connect(
+                self.switch_to_sessiontracker)
+
         QtCore.QObject.connect(self.ui.pushButton,
             QtCore.SIGNAL("clicked()"),  self.button_load_click)
 

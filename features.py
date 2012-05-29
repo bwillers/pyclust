@@ -204,7 +204,7 @@ class Feature_PCA(Feature):
         else:
             print "Calculating feature based PCA",
             t1 = time.clock()
-            M = 50000
+            M = 100000
             if spikeset.N > M:
                 perm = np.random.permutation(spikeset.N)
                 scores, coeff, stx = PCA(inputdata[perm[0:M],:], 6)
