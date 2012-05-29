@@ -14,6 +14,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.stats
 import matplotlib as mpl
+mpl.use('Qt4Agg')
 
 import pickle
 import os
@@ -387,6 +388,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.ui.label_subjectid.setText('')
         self.ui.label_session.setText('')
+        self.ui.label_fname.setText('')
 
         # Set up the cluster list area
         self.labels_container = QtGui.QWidget()
@@ -1004,6 +1006,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.matches = None
         print ''
+        print 'Trying to load file: ', fname
         print 'Clearing current clusters'
         for cluster in self.clusters[:]:
             self.delete_cluster(cluster)
@@ -1019,7 +1022,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.redrawing_details = False
         self.unsaved = False
 
-        print 'Loading ntt file', fname
+        print 'Loading file', fname
         t1 = time.clock()
         self.spikeset = spikeset.load(fname)
         t2 = time.clock()
@@ -1027,6 +1030,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.ui.label_subjectid.setText(self.spikeset.subject)
         self.ui.label_session.setText(self.spikeset.session)
+        self.ui.label_fname.setText(os.path.splitext(os.path.split(fname)[1])[0])
+        self.curfile = fname
 
         self.t_bins = np.arange(self.spikeset.time[0],
             self.spikeset.time[-1], 60e6)
@@ -1221,7 +1226,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         print "Saved bounds to", outfilename
 
         # Save the cluster membership vectors in matlab format
-        outfilename = root + os.extsep + 'cluster'
+        outfilename = root + os.extsep + 'mat'
 
         cluster_member = np.column_stack(tuple([cluster.member
             for cluster in self.clusters]))

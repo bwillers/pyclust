@@ -10,14 +10,15 @@ import matplotlib
 import py2exe
 
 
-excludes = []
+excludes = ['_wxagg', '_gtkagg', '_tkagg']
 includes = ["scipy.io.matlab.streams"]
 data_files = matplotlib.get_py2exe_datafiles()
 
+
 # something weird with enthought i need to include these manually
-data_files.append('mk2_core.dll')
-data_files.append('mk2_mc3.dll')
-data_files.append('mk2iomp5md.dll')
+data_files.append(r'C:\Python27\Scripts\mk2_core.dll')
+data_files.append(r'C:\Python27\Scripts\mk2_mc3.dll')
+data_files.append(r'C:\Python27\Scripts\mk2iomp5md.dll')
 
 opts = {
     "py2exe": {

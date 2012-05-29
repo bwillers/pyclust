@@ -11,7 +11,7 @@ import time
 import scipy.special as spspec
 import scipy.stats
 import numpy as np
-import pylab
+#import pylab
 import sklearn.mixture
 import matplotlib as mpl
 from PyQt4 import QtGui
@@ -94,10 +94,10 @@ def loadDotSpike(filename):
     print 'Peak alignment point', peak_align
     uvolt_conversion = np.array(struct.unpack('<dddd', f.read(8 * 4)))
     print 'Microvolt conversion factor', uvolt_conversion
-    datestr = readStringFromBinary(f)
-    print 'Date string', datestr
     subjectstr = readStringFromBinary(f)
     print 'Subject string', subjectstr
+    datestr = readStringFromBinary(f)
+    print 'Date string', datestr
     filterstr = readStringFromBinary(f)
     print 'Filter string', filterstr
 
@@ -112,7 +112,7 @@ def loadDotSpike(filename):
     f.close()
 
     return Spikeset(temp['spikes'] * np.reshape(uvolt_conversion, [1, 1, 4]),
-            temp['time'], peak_align, fs)
+            temp['time'], peak_align, fs, subject=subjectstr, session=datestr)
 
 def load(filename):
     if filename.endswith('.ntt'):
@@ -278,8 +278,8 @@ class Cluster:
             self.stats['isolation'] = np.NAN
             self.stats['refr_frac'] = np.NAN
         else:
-            self.stats['burst'] = (np.sum(self.isi < self.burst_period) /
-                (self.stats['num_spikes'] - 1) * 100)
+            self.stats['burst'] = (100.0 * np.sum(self.isi <
+                self.burst_period).astype(float)) / (self.stats['num_spikes'] - 1)
 
             self.stats['refr_count'] = np.sum(self.isi < self.refr_period)
 
@@ -314,8 +314,9 @@ class Cluster:
                 self.isi < self.burst_period,
                 self.isi > self.refr_period)]
             if np.size(delta,0):
-                self.stats['csi'] = ((100.0 / np.size(delta, 0)) *
-                    (np.sum(delta <= 0) - np.sum(delta > 0)))
+                temp = np.sum(delta <= 0) - np.sum(delta > 0)
+                temp = temp.astype(np.float)
+                self.stats['csi'] = 100.0 * temp / np.size(delta)
             else:
                 self.stats['csi'] = np.NAN
 
@@ -445,8 +446,8 @@ class Cluster:
 
             # Choose the best projection
             ind = np.argmax(fitness[:,0])
-            print "Creating boundary on", fname, projs[ind][0], \
-                    "vs.", fname, projs[ind][1]
+#            print "Creating boundary on", fname, projs[ind][0], \
+#                    "vs.", fname, projs[ind][1]
             bound = boundaries.BoundaryEllipse2D((fname, fname),
                     (projs[ind][0], projs[ind][1]), ellipses[ind][0],
                     ellipses[ind][1], ellipses[ind][2])

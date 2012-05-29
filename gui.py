@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'pyclust_main_layout.ui'
 #
-# Created: Tue May 29 00:15:10 2012
+# Created: Tue May 29 12:29:41 2012
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -437,6 +437,20 @@ class Ui_MainWindow(object):
         self.label_session.setObjectName(_fromUtf8("label_session"))
         self.horizontalLayout_27.addWidget(self.label_session)
         self.verticalLayout_2.addLayout(self.horizontalLayout_27)
+        self.horizontalLayout_28 = QtGui.QHBoxLayout()
+        self.horizontalLayout_28.setObjectName(_fromUtf8("horizontalLayout_28"))
+        self.label_15 = QtGui.QLabel(self.frame_details_display)
+        self.label_15.setObjectName(_fromUtf8("label_15"))
+        self.horizontalLayout_28.addWidget(self.label_15)
+        self.label_fname = QtGui.QLabel(self.frame_details_display)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.label_fname.sizePolicy().hasHeightForWidth())
+        self.label_fname.setSizePolicy(sizePolicy)
+        self.label_fname.setObjectName(_fromUtf8("label_fname"))
+        self.horizontalLayout_28.addWidget(self.label_fname)
+        self.verticalLayout_2.addLayout(self.horizontalLayout_28)
         self.mplwidget_isi = MatplotlibWidget(self.frame_details_display)
         self.mplwidget_isi.setMinimumSize(QtCore.QSize(247, 150))
         self.mplwidget_isi.setMaximumSize(QtCore.QSize(289, 175))
@@ -656,6 +670,8 @@ class Ui_MainWindow(object):
         self.label_subjectid.setText(QtGui.QApplication.translate("MainWindow", "TextLabel", None, QtGui.QApplication.UnicodeUTF8))
         self.label_14.setText(QtGui.QApplication.translate("MainWindow", "Session:", None, QtGui.QApplication.UnicodeUTF8))
         self.label_session.setText(QtGui.QApplication.translate("MainWindow", "TextLabel", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_15.setText(QtGui.QApplication.translate("MainWindow", "File:", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_fname.setText(QtGui.QApplication.translate("MainWindow", "TextLabel", None, QtGui.QApplication.UnicodeUTF8))
         self.label_6.setText(QtGui.QApplication.translate("MainWindow", "Spikes:", None, QtGui.QApplication.UnicodeUTF8))
         self.label.setText(QtGui.QApplication.translate("MainWindow", "CSI:", None, QtGui.QApplication.UnicodeUTF8))
         self.label_4.setText(QtGui.QApplication.translate("MainWindow", "Burst Index:", None, QtGui.QApplication.UnicodeUTF8))
