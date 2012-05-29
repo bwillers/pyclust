@@ -336,15 +336,16 @@ class ProjectionWidget(Canvas):
 
         # complete the ellipse boundary
         if event.button == 3 and self.limit_mode and self.limit_type == 2:
-            t = lambda s: self.axes.transData.transform(s)
+            t = lambda s: np.array(self.axes.transData.transform(s))
 
             # We need to map the ellipse from display coordinates to
             # data coordinates, do this through the matrix form of the
             # ellipse equation
-            center = self.limit_data[0]
-            vc = np.array(t(center))
-            va = np.array(t(self.limit_data[1]))
-            vm = np.array(t((event.xdata, event.ydata)))
+            center = tuple(0.5 * np.array(self.limit_data[0]) + \
+                    0.5 * np.array(self.limit_data[1]))
+            vc = 0.5 * (t(self.limit_data[0]) + t(self.limit_data[1]))
+            va = t(self.limit_data[1])
+            vm = t((event.xdata, event.ydata))
 
             angvec = va - vc
             angle = np.arctan2(angvec[1], angvec[0])
@@ -422,7 +423,7 @@ class ProjectionWidget(Canvas):
 
        # convert to data units
         height = self.figure.bbox.height
-        t = lambda s: self.axes.transData.transform(s)
+        t = lambda s: np.array(self.axes.transData.transform(s))
 
         qp = QPainter()
         qp.begin(self)
@@ -445,29 +446,32 @@ class ProjectionWidget(Canvas):
         # Draw an ellipse
         if self.limit_mode and self.limit_type == 2 and self.limit_data:
             # convert to display coordinates
-            center = t(self.limit_data[0])
+            startp = t(self.limit_data[0])
             mouse = t((self._mouse_move_event.xdata,
                     self._mouse_move_event.ydata))
+            center = 0.5 * (startp + mouse)
 
             if len(self.limit_data) == 1: # we've set the center, draw line
                 eheight = 30
-                angvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
+                angvec = mouse - center
+#np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 angle = np.arctan2(angvec[1], angvec[0])
                 ewidth = np.linalg.norm(angvec)
 
             elif len(self.limit_data) > 1: # we've also fixed the angle
                 angleline = t(self.limit_data[1])
-                angvec = np.array([angleline[0] - center[0],
-                        angleline[1] - center[1]])
+                center = 0.5 * (startp + angleline)
+                angvec = angleline - center
+#np.array([angleline[0] - center[0],  angleline[1] - center[1]])
                 angle = np.arctan2(angvec[1], angvec[0])
                 ewidth = np.linalg.norm(angvec)
                 angvec = angvec / ewidth
 
-                mvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
+                mvec = mouse - center
+#np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
 
             if self.limit_data:
-
                 qp.translate(center[0], height - center[1])
                 qp.rotate(-angle * 180.0 / np.pi)
                 qp.drawEllipse(QPoint(0,0), ewidth, eheight)
