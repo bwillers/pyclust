@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'pyclust_session_tracker.ui'
 #
-# Created: Mon May 28 16:45:30 2012
+# Created: Tue May 29 00:07:19 2012
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -41,11 +41,6 @@ class Ui_SessionTrackerDialog(object):
         self.frame.setObjectName(_fromUtf8("frame"))
         self.verticalLayout = QtGui.QVBoxLayout(self.frame)
         self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
-        self.radioButton_nomatch = QtGui.QRadioButton(self.frame)
-        self.radioButton_nomatch.setObjectName(_fromUtf8("radioButton_nomatch"))
-        self.verticalLayout.addWidget(self.radioButton_nomatch)
-        spacerItem = QtGui.QSpacerItem(20, 661, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
-        self.verticalLayout.addItem(spacerItem)
         self.buttonBox = QtGui.QDialogButtonBox(self.frame)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum, QtGui.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
@@ -56,6 +51,11 @@ class Ui_SessionTrackerDialog(object):
         self.buttonBox.setStandardButtons(QtGui.QDialogButtonBox.Cancel|QtGui.QDialogButtonBox.Ok)
         self.buttonBox.setObjectName(_fromUtf8("buttonBox"))
         self.verticalLayout.addWidget(self.buttonBox)
+        self.radioButton_nomatch = QtGui.QRadioButton(self.frame)
+        self.radioButton_nomatch.setObjectName(_fromUtf8("radioButton_nomatch"))
+        self.verticalLayout.addWidget(self.radioButton_nomatch)
+        spacerItem = QtGui.QSpacerItem(20, 661, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        self.verticalLayout.addItem(spacerItem)
         self.horizontalLayout.addWidget(self.frame)
 
         self.retranslateUi(SessionTrackerDialog)

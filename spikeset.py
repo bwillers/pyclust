@@ -140,6 +140,8 @@ class Spikeset:
         self.fs = sampling_frequency
         self.dt_ms = 1000.0 / self.fs
         self.use_pca = True
+        self.subject = subject
+        self.session = session
         self.T = (max(self.time) - min(self.time)) / 1e6
 
     def calculateFeatures(self, special=None):
@@ -351,17 +353,28 @@ class Cluster:
         data = spikeset.featureByName(fname).data[self.member,:]
         refr = self.refractory[self.member]
 
+        N = np.sum(self.member)
+        ms = 1
+        if N > 1000:
+            ms = 1
+        elif N > 2000:
+            ms = 2
+        elif ms > 100:
+            ms = 3
+        else:
+            ms = 5
+
         counter = 0
         for proj_x in range(0, chans):
             for proj_y in range(proj_x + 1, chans):
                 counter = counter + 1
                 ax = canvas.figure.add_subplot(plots_y, plots_x,counter)
                 ax.plot(data[:,proj_x], data[:,proj_y],
-                                 marker='o', markersize=1,
+                                 marker='o', markersize=ms,
                                  markerfacecolor=col, markeredgecolor=col,
                                  linestyle='None', zorder=0)
                 ax.plot(data[refr, proj_x], data[refr, proj_y],
-                                marker='o', markersize=2,
+                                marker='o', markersize=ms+1,
                                 markerfacecolor='k', markeredgecolor='k',
                                 linestyle='None', zorder=1)
                 bounds = self.getBoundaries(fname, proj_x, fname, proj_y)
@@ -454,12 +467,12 @@ class Cluster:
             ax.cla()
             tdata = spikeset.featureByName(fname).data
             ax.plot(tdata[self.member,proj_x], tdata[self.member,proj_y],
-                             marker='o', markersize=1,
+                             marker='o', markersize=ms,
                              markerfacecolor=col, markeredgecolor=col,
                              linestyle='None', zorder=0)
             ax.plot(tdata[self.refractory, proj_x],
                     tdata[self.refractory, proj_y],
-                            marker='o', markersize=2,
+                            marker='o', markersize=ms+1,
                             markerfacecolor='k', markeredgecolor='k',
                             linestyle='None', zorder=1)
 

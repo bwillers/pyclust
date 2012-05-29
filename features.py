@@ -52,7 +52,12 @@ class Feature_Valley(Feature):
         Feature.__init__(self, 'Valley', spikeset)
 
     def calculate(self, spikeset):
-        return np.min(spikeset.spikes[:, spikeset.peak_index:, :], axis=1)
+        # fall time is typically around 0.4ms for interneuron, so
+        # search in that range
+        minrange = int(round(0.15 / spikeset.dt_ms)) + spikeset.peak_index
+        maxrange = int(round(0.25 / spikeset.dt_ms)) + spikeset.peak_index
+
+        return np.min(spikeset.spikes[:, minrange:maxrange+1, :], axis=1)
 
 
 class Feature_Trough(Feature):
