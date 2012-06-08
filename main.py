@@ -1021,6 +1021,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.limit_mode = False
         self.redrawing_details = False
         self.unsaved = False
+        self.ui.checkBox_show_unclustered.setChecked(True)
+        self.ui.checkBox_show_unclustered_exclusive.setChecked(True)
 
         print 'Loading file', fname
         t1 = time.clock()
