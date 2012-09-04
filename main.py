@@ -25,6 +25,7 @@ from gui import Ui_MainWindow
 from gui_sessiontracker import Ui_SessionTrackerDialog
 import spikeset
 import featurewidget
+import unique_colors
 #import features
 
 class PyClustSessionTrackerDialog(QtGui.QDialog):
@@ -670,8 +671,21 @@ class PyClustMainWindow(QtGui.QMainWindow):
     # Add a new cluster by generating a color, creating GUI elements, etc.
     def add_cluster(self, color=None):
         new_cluster = spikeset.Cluster(self.spikeset)
+        # If we're provided with a cluster color, use it
         if color:
             new_cluster.color = color
+        # Otherwise try to intelligently generate one using the existing
+        # color list
+        else:
+            color_list = [map(lambda x: x/255.0, cluster.color) for
+                    cluster in self.clusters]
+
+            # If this is the first color, we can pick whatever we want
+            if color_list == []:
+                new_cluster.color = (0, 50, 150)
+            else:
+                c = unique_colors.newcolor(color_list)
+                new_cluster.color = tuple(map(lambda x: int(x * 255), c))
 
         layout = self.labels_container.layout()
 

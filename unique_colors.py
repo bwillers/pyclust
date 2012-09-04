@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """ Generating n distinct colors. Obviously as n increases the colors become
-    less visually distinct but at least the first two functions for n ~15 
+    less visually distinct but at least the first two functions for n ~15
     will generte colors that one would pick manually."""
 import colorsys
 import numpy as np
@@ -9,12 +9,12 @@ from matplotlib import pyplot, mlab
 
 def unique_colors_hsv(n):
     """ hsv cylinder"""
-    colors =[]  
+    colors =[]
     for i in range(n):
-        colors.append(colorsys.hsv_to_rgb(i*1.0/n, 
+        colors.append(colorsys.hsv_to_rgb(i*1.0/n,
         1-np.random.random_sample()/5,1-np.random.random_sample()/2))
     return colors
-    
+
 #=======================================================
 def unique_colors_hsl(n):
     """ hsl cylinder"""
@@ -25,10 +25,10 @@ def unique_colors_hsl(n):
         saturation = (80 + np.random.rand() * 20)/100.
         colors.append(colorsys.hls_to_rgb(hue, lightness, saturation))
     return colors
-    
+
 #======================================================
 def unique_colors_rgb(n):
-    """Compute a list of distinct colors, each of which 
+    """Compute a list of distinct colors, each of which
        is represented as an RGB 3-tuple."""
     hues = []
     # i is in the range 0, 1, ..., n - 1
@@ -66,14 +66,14 @@ def unique_colors_rgb(n):
         rgbcolors.append(color)
 
     return rgbcolors
-    
+
 #=============================================================================
 def circ_mean(angles,radians = True):
-    """ This function takes a list of angles and calculates their circular mean 
+    """ This function takes a list of angles and calculates their circular mean
         in degrees"""
     if radians is False:
         for i in range(len(angles)):
-            angles[i]=angles[i]*np.pi/180    
+            angles[i]=angles[i]*np.pi/180
     cthetas =[]
     for i in range(len(angles)):
         cthetas.append(complex(np.cos(angles[i]),np.sin(angles[i])))
@@ -81,20 +81,20 @@ def circ_mean(angles,radians = True):
     temp = np.sum(cthetas)/np.absolute(np.sum(cthetas))
     mean_angle = np.angle(temp, deg = True)%360
     #mean_angle = (np.arctan2(temp.imag,temp.real)+np.pi)*180/np.pi
-    return mean_angle    
-    
+    return mean_angle
+
 def circ_dist(angles, radians = True):
     """ This function computes the circular distance between all input angles"""
     D=[]
     if radians is False:
         for i in range(len(angles)):
-            angles[i]=angles[i]*np.pi/180 
+            angles[i]=angles[i]*np.pi/180
     for i in range(len(angles)):
         for j in range(i+1,len(angles)):
             D.append(.5*(1+np.cos(angles[i]-angles[j])))
     return D
-    
-        
+
+
 def newcolor(currentlist):
     hsvcolors,angles,z,r = [],[],[],[]
     for i in range(len(currentlist)):
@@ -103,7 +103,7 @@ def newcolor(currentlist):
         angles.append(360*hsvcolors[i][0])
         z.append(hsvcolors[i][1])
         r.append(hsvcolors[i][2])
-        
+
     new_z = .4*(1-np.average(z))+.6-.1*np.random.rand()
     new_r = .3*(1-np.average(r))+.7-.3*np.random.rand()
     #new_angle = (circ_mean(angles)+180)%360
@@ -119,18 +119,18 @@ def newcolor(currentlist):
         for j in range(len(angles)):
             D[j]=np.array(circ_dist([new_angle,angles[j]], radians = False))
         if np.maximum(D,.06*np.ones(len(angles))).all == D.all:
-            break          
+            break
     #other useless method, maximizing distance on a circle
     #sumcos =[]
     #for theta in bins:
     #  sumcos.append(np.sum(np.cos(np.pi*(theta-angles)/180)))
     #new_angle=bins[sumcos.index(min(sumcos))]
     new_color = colorsys.hsv_to_rgb(new_angle/360,new_z,new_r)
-    
+
     return new_color
-        
-    
-        
-    
-    
-    
+
+
+
+
+
+
