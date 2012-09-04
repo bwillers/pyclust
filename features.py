@@ -52,7 +52,12 @@ class Feature_Valley(Feature):
         Feature.__init__(self, 'Valley', spikeset)
 
     def calculate(self, spikeset):
-        return np.min(spikeset.spikes[:, spikeset.peak_index:, :], axis=1)
+        # fall time is typically around 0.4ms for interneuron, so
+        # search in that range
+        minrange = int(round(0.15 / spikeset.dt_ms)) + spikeset.peak_index
+        maxrange = int(round(0.25 / spikeset.dt_ms)) + spikeset.peak_index
+
+        return np.min(spikeset.spikes[:, minrange:maxrange+1, :], axis=1)
 
 
 class Feature_Trough(Feature):
@@ -70,7 +75,7 @@ class Feature_Energy(Feature):
         self.valid_y_same_chan.append('Peak')
 
     def calculate(self, spikeset):
-        return np.sum(np.power(spikeset.spikes, 2), axis=1)
+        return np.sum(spikeset.spikes * spikeset.spikes, axis=1)
 
 
 class Feature_Time(Feature):
@@ -199,12 +204,13 @@ class Feature_PCA(Feature):
         t = spikeset.featureByName('Trough').data
         e = np.sqrt(spikeset.featureByName('Energy').data)
         inputdata = np.hstack((p, np.sqrt(e), v, t))
+        inputdata = inputdata - np.mean(inputdata, axis=0)
         if self.coeff != None:  # See if we were given projection components
             scores = np.dot(inputdata, self.coeff)
         else:
             print "Calculating feature based PCA",
             t1 = time.clock()
-            M = 50000
+            M = 100000
             if spikeset.N > M:
                 perm = np.random.permutation(spikeset.N)
                 scores, coeff, stx = PCA(inputdata[perm[0:M],:], 6)

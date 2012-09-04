@@ -8,7 +8,8 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
 
 import numpy as np
-#import matplotlib as mpl
+import matplotlib as mpl
+from scipy import ndimage
 
 from matplotlib import rcParams
 rcParams['font.size'] = 9
@@ -211,14 +212,36 @@ class ProjectionWidget(Canvas):
                 self.prof_limits[0][1], 100)
             bins_y = np.linspace(self.prof_limits[1][0],
                 self.prof_limits[1][1], 100)
+
+            self.axes.cla()
+            self.axes.set_xlim(self.prof_limits[0])
+            self.axes.set_ylim(self.prof_limits[1])
+
             count = np.histogram2d(xdata[w],
                 ydata[w], [bins_x, bins_y])[0]
 
+            count = ndimage.filters.gaussian_filter(count, 0.5)
+
+#            kernel = stats.gaussian_kde(np.vstack([xdata[w], ydata[w]]))
+#            X, Y = np.mgrid[self.prof_limits[0][0]:self.prof_limits[0][1]:100j,
+#                    self.prof_limits[1][0]:self.prof_limits[1][1]:100j]
+#            positions = np.vstack([X.ravel(), Y.ravel()])
+#            Z = np.reshape(kernel(positions).T, X.shape)
+
             if self.ptype == -3:
-                self.axes.pcolor(bins_x, bins_y, np.transpose(count))
+#                self.axes.imshow(Z.T, cmap=mpl.cm.gist_earth_r,
+#                        aspect='auto', extent = self.prof_limits[0] +
+#                        self.prof_limits[1])
+                self.axes.imshow(count.T, cmap=mpl.cm.gist_earth_r,
+                        aspect='auto',  extent=self.axes.get_xlim() + \
+                        self.axes.get_ylim()[::-1])
             else:
-                self.axes.pcolor(bins_x, bins_y,
-                    np.transpose(np.log(count + 1)))
+#                self.axes.imshow(np.log(Z+1).T, cmap=mpl.cm.gist_earth_r,
+#                        aspect='auto', extent = self.prof_limits[0] +
+#                        self.prof_limits[1])
+                 self.axes.imshow(np.log(count+1).T, cmap=mpl.cm.gist_earth_r,
+                        aspect='auto',  extent=self.axes.get_xlim() + \
+                        self.axes.get_ylim()[::-1])
 
             # Iterate over clusters for refractory spikes
             if self.refractory:
@@ -229,8 +252,8 @@ class ProjectionWidget(Canvas):
 
                     # Plot refractory spikes
                     self.axes.plot(xdata[cluster.refractory],
-                        ydata[cluster.refractory], marker='o', markersize=5,
-                        markerfacecolor='w', markeredgecolor='w',
+                        ydata[cluster.refractory], marker='o', markersize=3,
+                        markerfacecolor='k', markeredgecolor='k',
                         linestyle='None')
 
         self.axes.set_xlim(self.prof_limits[0])
@@ -336,15 +359,16 @@ class ProjectionWidget(Canvas):
 
         # complete the ellipse boundary
         if event.button == 3 and self.limit_mode and self.limit_type == 2:
-            t = lambda s: self.axes.transData.transform(s)
+            t = lambda s: np.array(self.axes.transData.transform(s))
 
             # We need to map the ellipse from display coordinates to
             # data coordinates, do this through the matrix form of the
             # ellipse equation
-            center = self.limit_data[0]
-            vc = np.array(t(center))
-            va = np.array(t(self.limit_data[1]))
-            vm = np.array(t((event.xdata, event.ydata)))
+            center = tuple(0.5 * np.array(self.limit_data[0]) + \
+                    0.5 * np.array(self.limit_data[1]))
+            vc = 0.5 * (t(self.limit_data[0]) + t(self.limit_data[1]))
+            va = t(self.limit_data[1])
+            vm = t((event.xdata, event.ydata))
 
             angvec = va - vc
             angle = np.arctan2(angvec[1], angvec[0])
@@ -422,7 +446,7 @@ class ProjectionWidget(Canvas):
 
        # convert to data units
         height = self.figure.bbox.height
-        t = lambda s: self.axes.transData.transform(s)
+        t = lambda s: np.array(self.axes.transData.transform(s))
 
         qp = QPainter()
         qp.begin(self)
@@ -445,29 +469,32 @@ class ProjectionWidget(Canvas):
         # Draw an ellipse
         if self.limit_mode and self.limit_type == 2 and self.limit_data:
             # convert to display coordinates
-            center = t(self.limit_data[0])
+            startp = t(self.limit_data[0])
             mouse = t((self._mouse_move_event.xdata,
                     self._mouse_move_event.ydata))
+            center = 0.5 * (startp + mouse)
 
             if len(self.limit_data) == 1: # we've set the center, draw line
                 eheight = 30
-                angvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
+                angvec = mouse - center
+#np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 angle = np.arctan2(angvec[1], angvec[0])
                 ewidth = np.linalg.norm(angvec)
 
             elif len(self.limit_data) > 1: # we've also fixed the angle
                 angleline = t(self.limit_data[1])
-                angvec = np.array([angleline[0] - center[0],
-                        angleline[1] - center[1]])
+                center = 0.5 * (startp + angleline)
+                angvec = angleline - center
+#np.array([angleline[0] - center[0],  angleline[1] - center[1]])
                 angle = np.arctan2(angvec[1], angvec[0])
                 ewidth = np.linalg.norm(angvec)
                 angvec = angvec / ewidth
 
-                mvec = np.array([mouse[0] - center[0], mouse[1] - center[1]])
+                mvec = mouse - center
+#np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
 
             if self.limit_data:
-
                 qp.translate(center[0], height - center[1])
                 qp.rotate(-angle * 180.0 / np.pi)
                 qp.drawEllipse(QPoint(0,0), ewidth, eheight)
