@@ -8,7 +8,8 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
 
 import numpy as np
-#import matplotlib as mpl
+import matplotlib as mpl
+from scipy import ndimage
 
 from matplotlib import rcParams
 rcParams['font.size'] = 9
@@ -211,14 +212,36 @@ class ProjectionWidget(Canvas):
                 self.prof_limits[0][1], 100)
             bins_y = np.linspace(self.prof_limits[1][0],
                 self.prof_limits[1][1], 100)
+
+            self.axes.cla()
+            self.axes.set_xlim(self.prof_limits[0])
+            self.axes.set_ylim(self.prof_limits[1])
+
             count = np.histogram2d(xdata[w],
                 ydata[w], [bins_x, bins_y])[0]
 
+            count = ndimage.filters.gaussian_filter(count, 0.5)
+
+#            kernel = stats.gaussian_kde(np.vstack([xdata[w], ydata[w]]))
+#            X, Y = np.mgrid[self.prof_limits[0][0]:self.prof_limits[0][1]:100j,
+#                    self.prof_limits[1][0]:self.prof_limits[1][1]:100j]
+#            positions = np.vstack([X.ravel(), Y.ravel()])
+#            Z = np.reshape(kernel(positions).T, X.shape)
+
             if self.ptype == -3:
-                self.axes.pcolor(bins_x, bins_y, np.transpose(count))
+#                self.axes.imshow(Z.T, cmap=mpl.cm.gist_earth_r,
+#                        aspect='auto', extent = self.prof_limits[0] +
+#                        self.prof_limits[1])
+                self.axes.imshow(count.T, cmap=mpl.cm.gist_earth_r,
+                        aspect='auto',  extent=self.axes.get_xlim() + \
+                        self.axes.get_ylim()[::-1])
             else:
-                self.axes.pcolor(bins_x, bins_y,
-                    np.transpose(np.log(count + 1)))
+#                self.axes.imshow(np.log(Z+1).T, cmap=mpl.cm.gist_earth_r,
+#                        aspect='auto', extent = self.prof_limits[0] +
+#                        self.prof_limits[1])
+                 self.axes.imshow(np.log(count+1).T, cmap=mpl.cm.gist_earth_r,
+                        aspect='auto',  extent=self.axes.get_xlim() + \
+                        self.axes.get_ylim()[::-1])
 
             # Iterate over clusters for refractory spikes
             if self.refractory:
@@ -229,8 +252,8 @@ class ProjectionWidget(Canvas):
 
                     # Plot refractory spikes
                     self.axes.plot(xdata[cluster.refractory],
-                        ydata[cluster.refractory], marker='o', markersize=5,
-                        markerfacecolor='w', markeredgecolor='w',
+                        ydata[cluster.refractory], marker='o', markersize=3,
+                        markerfacecolor='k', markeredgecolor='k',
                         linestyle='None')
 
         self.axes.set_xlim(self.prof_limits[0])

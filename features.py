@@ -75,7 +75,7 @@ class Feature_Energy(Feature):
         self.valid_y_same_chan.append('Peak')
 
     def calculate(self, spikeset):
-        return np.sum(np.power(spikeset.spikes, 2), axis=1)
+        return np.sum(spikeset.spikes * spikeset.spikes, axis=1)
 
 
 class Feature_Time(Feature):
@@ -204,6 +204,7 @@ class Feature_PCA(Feature):
         t = spikeset.featureByName('Trough').data
         e = np.sqrt(spikeset.featureByName('Energy').data)
         inputdata = np.hstack((p, np.sqrt(e), v, t))
+        inputdata = inputdata - np.mean(inputdata, axis=0)
         if self.coeff != None:  # See if we were given projection components
             scores = np.dot(inputdata, self.coeff)
         else:
