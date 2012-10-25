@@ -28,6 +28,8 @@ import featurewidget
 import unique_colors
 #import features
 
+import mmodel
+
 class PyClustSessionTrackerDialog(QtGui.QDialog):
 
     def __del__(self):
@@ -642,12 +644,20 @@ class PyClustMainWindow(QtGui.QMainWindow):
         hlayout.addWidget(label)
         layout.insertLayout(layout.count() - 1, hlayout)
 
+        # list containing the cluster check/radio/color buttons
+        self.cluster_ui_buttons = []
+
     def hide_show_all_clusters(self, hidden):
         self.redrawing_proj = True
-        for cluster in self.clusters:
-            if cluster.radio == self.activeClusterRadioButton():
+        radio = self.activeClusterRadioButton()
+        for cluster, ui in zip(self.clusters, self.cluster_ui_buttons):
+            if ui[0] == radio:
                 continue
-            cluster.check.setChecked(not hidden)
+#            if radio != self.radioButton_junk and \
+#                cluster == self.activeClusterRadioButton().cluster_reference:
+#                continue
+            ui[3].setChecked(not hidden)
+#            cluster.check.setChecked(not hidden)
             if hidden:
                 # dont show this on show all
                 self.checkBox_junk.setChecked(False)
@@ -659,13 +669,15 @@ class PyClustMainWindow(QtGui.QMainWindow):
     # checkboxes, and tell the projection widget to stop drawing
     def update_active_cluster(self):
         self.updateClusterDetailPlots()
-        for cluster in self.clusters:
-            cluster.check.setEnabled(True)
+        for ui in self.cluster_ui_buttons:
+            ui[3].setEnabled(True) # enable all check boxes
         if self.activeClusterRadioButton() == self.radioButton_junk:
             return
-        check = self.activeClusterRadioButton().cluster_reference.check
-        check.setEnabled(False)
-        check.setChecked(True)
+        for ui in self.cluster_ui_buttons:
+            if ui[0] == self.activeClusterRadioButton():
+                check = ui[3]
+                check.setEnabled(False)
+                check.setChecked(True)
         self.mp_proj.stopMouseAction()
 
     # Add a new cluster by generating a color, creating GUI elements, etc.
@@ -726,11 +738,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
         cbut.cluster_reference = new_cluster
         radio.cluster_reference = new_cluster
 
-        new_cluster.radio = radio
-        new_cluster.layout = hlayout
-        new_cluster.cbut = cbut
-        new_cluster.check = check
+#        new_cluster.radio = radio
+#        new_cluster.layout = hlayout
+#        new_cluster.cbut = cbut
+#        new_cluster.check = check
 
+        self.cluster_ui_buttons.append((radio,hlayout,cbut,check))
         self.clusters.append(new_cluster)
         self.update_active_cluster()
 
@@ -758,21 +771,24 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 print "Clearing cluster matches"
                 self.matches = None
 
-        self.buttonGroup_cluster.removeButton(cluster.radio)
-        layout = cluster.layout
-        self.labels_container.layout().removeItem(layout)
-        for i in range(layout.count()):
-            if layout.itemAt(i).widget():
-                layout.itemAt(i).widget().close()
-                layout.itemAt(i).widget().deleteLater()
-        # We have some circular references that will drive the GC mad,
-        #so take care of those now
-        cluster.layout = None
-        cluster.radio.cluster_reference = None
-        cluster.cbut.cluster_reference = None
-        cluster.radio = None
-        cluster.cbut = None
-        cluster.check = None
+        for ui_container in self.cluster_ui_buttons:
+            if ui_container[0].cluster_reference == cluster:
+                radio = ui_container[0]
+                layout = ui_container[1]
+                cbut = ui_container[2]
+
+                self.buttonGroup_cluster.removeButton(radio)
+                self.labels_container.layout().removeItem(layout)
+                for i in range(layout.count()):
+                    if layout.itemAt(i).widget():
+                        layout.itemAt(i).widget().close()
+                        layout.itemAt(i).widget().deleteLater()
+
+                radio.cluster_reference = None
+                cbut.cluster_reference = None
+
+                self.cluster_ui_buttons.remove(ui_container)
+                break
 
         self.clusters.remove(cluster)
 
@@ -1069,8 +1085,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         if os.path.exists(boundfilename):
             print "Found boundary file", boundfilename
             self.importBounds(boundfilename)
-        else:
-            self.spikeset.calculateFeatures()
+#        else:
+#            self.spikeset.calculateFeatures()
 
         # Set the combo boxes to the current feature for now
         self.ui.comboBox_feature_x.clear()
@@ -1084,6 +1100,50 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.current_filename = str(fname)
 
         self.ui.stackedWidget.setCurrentIndex(0)
+
+        # Now try to fit a GMM, hardcoded for testing, add a gui later
+        #mmodel.fitGMMMembershipModel(self.spikeset, self)
+
+        # see if there is a klustakwik cluster file to load
+        kkwikfilename = root + os.extsep + 'clu.1'
+        if os.path.exists(kkwikfilename):
+            print "Found KKwik cluster file",
+            f = open(kkwikfilename, 'r');
+            n_clust = int(f.readline())
+            f.close()
+            print "with", n_clust, "mixture components:"
+            labels = np.loadtxt(kkwikfilename)
+            labels = labels[1:]
+            p = self.spikeset.featureByName('Peak').data
+
+            # find the spike detection threshold, or an estimate of the
+            # multi unit cloud peak
+            pchan = np.argmax(p, axis=1)
+            peak_thresh = np.zeros((p.shape[1]))
+            for i in xrange(p.shape[1]):
+                peak_thresh[i] = np.min(p[pchan==i,i])
+
+            for i in range(1, n_clust): # skip 1, its the 'noise' cluster
+                update = True
+                print i+1,
+                sys.stdout.flush()
+                cluster = self.add_cluster()
+                cluster.membership_model.append(
+                        mmodel.PrecalculatedLabelsMembershipModel(labels, [i+1]))
+                cluster.calculateMembership(self.spikeset)
+                # figure out where this sits compared to the peak threshold
+                relpeak = np.mean(p[cluster.member,:], axis=0) / peak_thresh
+#                print relpeak, np.mean(relpeak)
+                if cluster.stats['refr_frac'] > 0.015 or \
+                        np.abs(cluster.stats['wv_com']) >= 0.15 or \
+                        np.mean(relpeak) < 1.5:
+                    #print 'Deleting auto-cluster with > 1% refractory'
+                    self.delete_cluster(cluster)
+                    update = False
+
+            if update:
+                self.update_active_cluster()
+            self.updateFeaturePlot()
 
     def button_load_click(self):
         fname = QtGui.QFileDialog.getOpenFileName(self,
@@ -1099,8 +1159,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
         if not self.spikeset or not self.junk_cluster:
             return
 
+        check_boxes = [ui[3] for ui in self.cluster_ui_buttons] + [
+                self.junk_cluster.check]
         self.mp_proj.updatePlot(self.spikeset,
-                self.clusters, self.junk_cluster)
+                self.clusters, self.junk_cluster, check_boxes)
 
         self.mp_proj.draw()
         self.redrawing_proj = False

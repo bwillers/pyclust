@@ -133,10 +133,12 @@ class ProjectionWidget(Canvas):
         self.emit(SIGNAL("featureRedrawRequired()"))
 
     # Given a set of spike and cluster data, create the figure
-    def updatePlot(self, spikeset, clusters, junk):
+    def updatePlot(self, spikeset, clusters, junk, visible_checkboxes):
         xdata = spikeset.featureByName(self.feature_x).data[:, self.chan_x]
         ydata = spikeset.featureByName(self.feature_y).data[:, self.chan_y]
         self.axes.hold(False)
+
+        cl_list = zip(clusters + [junk], visible_checkboxes)
 
         #print "Updating feature plot: ", self.feature_x, self.chan_x, \
         #        " vs ", self.feature_y, self.chan_y
@@ -173,8 +175,9 @@ class ProjectionWidget(Canvas):
                 self.axes.hold(True)
 
             # Iterate over clusters
-            for cluster in clusters + [junk]:
-                if not cluster.check.isChecked():
+            for cluster, check in cl_list:
+                #todo: fix this
+                if not check.isChecked():
                     continue
 
                 col = map(lambda s: s / 255.0, cluster.color)
@@ -201,8 +204,7 @@ class ProjectionWidget(Canvas):
                         for cluster in clusters + [junk]:
                                 w[cluster.member] = False
             for cluster in \
-                [cluster for cluster in \
-                    clusters + [junk] if cluster.check.isChecked()]:
+                [cluster for cluster, check in cl_list if check.isChecked()]:
                     w[cluster.member] = True
 
             if not np.any(w):
@@ -246,8 +248,8 @@ class ProjectionWidget(Canvas):
             # Iterate over clusters for refractory spikes
             if self.refractory:
                 self.axes.hold(True)
-                for cluster in clusters + [junk]:
-                    if not cluster.check.isChecked():
+                for cluster, check in cl_list:
+                    if not check.isChecked():
                         continue
 
                     # Plot refractory spikes
@@ -262,8 +264,8 @@ class ProjectionWidget(Canvas):
         self.axes.set_yticks([])
 
         # Now draw the boundaries
-        for cluster in clusters + [junk]:
-            if not cluster.check.isChecked():
+        for cluster, check in cl_list:
+            if not check.isChecked():
                 continue
 
             # Limit boundaries with solid line

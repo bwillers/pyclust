@@ -221,3 +221,28 @@ class Feature_PCA(Feature):
             t2 = time.clock()
             print "took", (t2-t1), "seconds."
         return scores
+
+class Feature_Waveform_PCA(Feature):
+    def __init__(self, spikeset, coeff = None):
+        self.coeff = coeff
+        Feature.__init__(self, 'wPCA', spikeset)
+
+    def calculate(self, spikeset):
+        print "Calculating waveform based PCA",
+        t1 = time.clock()
+        K = 3
+        self.coeff = np.zeros((spikeset.spikes.shape[1], K,
+            spikeset.spikes.shape[2]))
+        scores = np.zeros((spikeset.spikes.shape[0], K,
+            spikeset.spikes.shape[2]))
+        for chan in xrange(spikeset.spikes.shape[2]):
+            inputdata = spikeset.spikes[:,:,chan]
+            #scores[:,:,chan], self.coeff[:, chan], stx = PCA(inputdata, K)
+            temp1, temp2, stx = PCA(inputdata, K)
+            scores[:,:,chan] = temp1
+            self.coeff[:,:,chan] = temp2
+        t2 = time.clock()
+        print "took", (t2-t1), "seconds."
+        scores = np.reshape(scores, (scores.shape[0], scores.shape[1] *
+            scores.shape[2]))
+        return scores

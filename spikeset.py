@@ -7,6 +7,9 @@ Created on Fri Mar 30 04:18:30 2012
 import random
 import struct
 import time
+import os
+import pickle
+import hashlib
 
 import scipy.special as spspec
 import scipy.stats
@@ -36,9 +39,12 @@ def loadNtt(filename):
 
     # header is supposed to be 16kbyte, i.e. 16 * 2^10 = 2^14
 
-    # Read the header and findthe conversion factors
+    # Read the header and find the conversion factors / sampling frequency
     a2d_conversion = [1, 1, 1, 1]
+    fs = 32556.0
     for line in header.split('\n'):
+        if line.strip().startswith('-SamplingFrequency'):
+            fs = float(line.strip().split(' ')[1].strip())
         if line.strip().startswith('-ADBitVolts'):
             a2d_conversion = 1e6 * np.array(map(float, line.split()[1:5]))
             break
@@ -49,7 +55,7 @@ def loadNtt(filename):
     temp = np.fromfile(f, dt)
 
     return Spikeset(temp['spikes'] * np.reshape(a2d_conversion, [1, 1, 4]),
-            temp['time'], 8, 32556)
+            temp['time'], 8, fs)
 
 def readStringFromBinary(f):
     strlen, = struct.unpack('<I', f.read(4))
@@ -115,11 +121,26 @@ def loadDotSpike(filename):
             temp['time'], peak_align, fs, subject=subjectstr, session=datestr)
 
 def load(filename):
+    # Load the file
     if filename.endswith('.ntt'):
-        return loadNtt(filename)
-    if filename.endswith('spike'):
-        return loadDotSpike(filename)
-    return None
+        ss = loadNtt(filename)
+        featureFile = filename.replace('.ntt', '.features')
+    elif filename.endswith('.spike'):
+        ss = loadDotSpike(filename)
+        featureFile = filename.replace('.spike', '.features')
+    else:
+        return None
+
+    # check if feature file exists
+    if os.path.exists(featureFile):
+        # load it up
+        ss.loadFeatures(featureFile)
+    else:
+        # calculate features, and save them
+        ss.calculateFeatures()
+        ss.saveFeatures(featureFile)
+
+    return ss
 
 # rough breakdown as follows
 # spikeset contains spikes, timestamps for the whole ntt file
@@ -144,6 +165,29 @@ class Spikeset:
         self.session = session
         self.T = (max(self.time) - min(self.time)) / 1e6
 
+    def saveFeatures(self, filename):
+        print "Saving features, spikeset hash",
+        f = open(filename, 'wb')
+        # compute a hash for the spikeset
+        b = self.spikes.view(np.uint8)
+        hashkey = hashlib.sha1(b).hexdigest()
+        print hashkey, "to file", filename
+        pickle.dump(hashkey, f)
+        pickle.dump(self.features, f)
+
+    def loadFeatures(self, filename):
+        f = open(filename, 'rb')
+        loadhash = pickle.load(f)
+        b = self.spikes.view(np.uint8)
+        hashkey = hashlib.sha1(b).hexdigest()
+
+        if loadhash == hashkey:
+            print "Spikeset hashes match, loading features"
+            self.features = pickle.load(f)
+            self.features.append(features.Feature_Barycenter(self))
+        else:
+            print "Hashes don't match, features are from a different dataset"
+
     def calculateFeatures(self, special=None):
         print "Computing features"
         if not special:
@@ -159,13 +203,11 @@ class Spikeset:
         self.features.append(features.Feature_Valley(self))
         self.features.append(features.Feature_Trough(self))
 
-        #    features.Feature_Barycenter(self),
-        #    features.Feature_FallArea(self)]
-
         if self.use_pca:
             self.features.append(
                     features.Feature_PCA(self, self.feature_special['PCA']))
             self.feature_special['PCA'] = self.featureByName('PCA').coeff
+            self.features.append(features.Feature_Waveform_PCA(self))
 
     def __del__(self):
         print "Spikeset object being destroyed"
@@ -189,16 +231,16 @@ class Cluster:
         self.wave_bounds = []
         self.add_bounds = []
         self.del_bounds = []
+        self.membership_model = []
         self.isi = []
         self.refractory = np.array([False] * spikeset.N)
         self.stats = {}
 
     def __del__(self):
-        print "Cluster object being destroyed"
+        # print "Cluster object being destroyed"
+        pass
 
     def addBoundary(self, bound):
-        # bounds should be a 5 or 6 length tuple,
-        # (name_x, chan_x, name_Y, chan_y, polygon_points, extra_data)
         self.removeBound(bound.features, bound.chans)
         self.bounds.append(bound)
 
@@ -228,18 +270,24 @@ class Cluster:
 
     def calculateMembership(self, spikeset):
         self.mahal_valid = False
-        if (not self.bounds) and (not self.add_bounds):
+        if (not self.bounds) and (not self.add_bounds) and \
+            (not self.membership_model):
             self.member = np.array([False] * spikeset.N)
             self.isi = []
             self.refractory = np.array([False] * spikeset.N)
             return
 
+        self.member = np.array([False] * spikeset.N)
         if self.add_bounds:
             # if we have additive boundaries, use those
-            self.member = np.array([False] * spikeset.N)
             for bound in self.add_bounds:
                 self.member = np.logical_or(self.member,
                     bound.withinBoundary(spikeset))
+
+        elif self.membership_model:
+            for model in self.membership_model:
+                self.member = np.logical_or(self.member,
+                    model.calculateMembership(spikeset))
         else:
             self.member = np.array([True] * spikeset.N)
 
@@ -270,6 +318,9 @@ class Cluster:
         self.stats['num_spikes'] = np.sum(self.member)
         self.stats['mean_rate'] = self.stats['num_spikes'] / spikeset.T
 
+        # some waveform stats might be useful to split the different
+        # types of clusters - single unit, multi unit, overlap, etc
+
         if self.stats['num_spikes'] <= 1:
             self.stats['burst'] = np.NAN
             self.stats['refr_count'] = np.NAN
@@ -277,7 +328,19 @@ class Cluster:
             self.stats['refr_fp'] = np.NAN
             self.stats['isolation'] = np.NAN
             self.stats['refr_frac'] = np.NAN
+            self.stats['com'] = np.NAN
         else:
+            # work out a mean waveform
+            u_wv = np.mean(spikeset.spikes[self.member, :, :], axis=0)
+            u_wv_2 = u_wv * u_wv
+            com_x = np.arange(u_wv.shape[0])
+            com_chan = (np.sum(u_wv_2.T * com_x, axis=1) /
+                    np.sum(u_wv_2, axis=0) - spikeset.peak_index)
+            p = u_wv[spikeset.peak_index,:]
+            # peak weighted average of the channels
+            self.stats['wv_com'] = sum(com_chan * p) / sum(p) * spikeset.dt_ms
+            #print self.stats['wv_com']
+
             self.stats['burst'] = (100.0 * np.sum(self.isi <
                 self.burst_period).astype(float)) / (self.stats['num_spikes'] - 1)
 
