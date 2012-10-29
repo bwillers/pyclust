@@ -124,10 +124,12 @@ def load(filename):
     # Load the file
     if filename.endswith('.ntt'):
         ss = loadNtt(filename)
-        featureFile = filename.replace('.ntt', '.features')
+        #featureFile = filename.replace('.ntt', '.features')
+        featureFile = filename + '.feat'
     elif filename.endswith('.spike'):
         ss = loadDotSpike(filename)
-        featureFile = filename.replace('.spike', '.features')
+        #featureFile = filename.replace('.spike', '.features')
+        featureFile = filename + '.feat'
     else:
         return None
 
@@ -166,14 +168,15 @@ class Spikeset:
         self.T = (max(self.time) - min(self.time)) / 1e6
 
     def saveFeatures(self, filename):
-        print "Saving features, spikeset hash",
+        print "Saving features info, spikeset hash",
         f = open(filename, 'wb')
         # compute a hash for the spikeset
         b = self.spikes.view(np.uint8)
         hashkey = hashlib.sha1(b).hexdigest()
-        print hashkey, "to file", filename
+        print hashkey, "to file", filename, "."
         pickle.dump(hashkey, f)
-        pickle.dump(self.features, f)
+        #pickle.dump(self.features, f)
+        pickle.dump(self.feature_special, f)
 
     def loadFeatures(self, filename):
         f = open(filename, 'rb')
@@ -182,14 +185,15 @@ class Spikeset:
         hashkey = hashlib.sha1(b).hexdigest()
 
         if loadhash == hashkey:
-            print "Spikeset hashes match, loading features"
-            self.features = pickle.load(f)
-            self.features.append(features.Feature_Barycenter(self))
+            print "Spikeset hashes match, loading features info."
+            #self.features = pickle.load(f)
+            self.calculateFeatures(pickle.load(f))
+            #self.features.append(features.Feature_Barycenter(self))
         else:
-            print "Hashes don't match, features are from a different dataset"
+            print "Hashes don't match, features are from a different dataset."
 
     def calculateFeatures(self, special=None):
-        print "Computing features"
+        print "Computing features."
         if not special:
             self.feature_special = dict()
             self.feature_special['PCA'] = None
@@ -202,12 +206,13 @@ class Spikeset:
         self.features.append(features.Feature_Time(self))
         self.features.append(features.Feature_Valley(self))
         self.features.append(features.Feature_Trough(self))
+#        self.features.append(features.Feature_CoM(self))
 
         if self.use_pca:
             self.features.append(
                     features.Feature_PCA(self, self.feature_special['PCA']))
             self.feature_special['PCA'] = self.featureByName('PCA').coeff
-            self.features.append(features.Feature_Waveform_PCA(self))
+#            self.features.append(features.Feature_Waveform_PCA(self))
 
     def __del__(self):
         print "Spikeset object being destroyed"

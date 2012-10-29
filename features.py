@@ -204,7 +204,9 @@ class Feature_PCA(Feature):
         t = spikeset.featureByName('Trough').data
         e = np.sqrt(spikeset.featureByName('Energy').data)
         inputdata = np.hstack((p, np.sqrt(e), v, t))
-        inputdata = inputdata - np.mean(inputdata, axis=0)
+        # demeaning really just shifts by a constant, not worth breaking
+        # existing cluster files
+        # inputdata = inputdata - np.mean(inputdata, axis=0)
         if self.coeff != None:  # See if we were given projection components
             scores = np.dot(inputdata, self.coeff)
         else:

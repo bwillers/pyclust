@@ -151,8 +151,8 @@ class ProjectionWidget(Canvas):
             temp = ([np.min(xdata[w]), np.max(xdata[w])],
                     [np.min(ydata[w]), np.max(ydata[w])])
 
-            w_x = (temp[0][1] - temp[0][0]) * 0.05
-            w_y = (temp[1][1] - temp[1][0]) * 0.05
+            w_x = (temp[0][1] - temp[0][0]) * 0.01
+            w_y = (temp[1][1] - temp[1][0]) * 0.01
             self.prof_limits_reference = ([temp[0][0] - w_x, temp[0][1] + w_x],
                 [temp[1][0] - w_y, temp[1][1] + w_y])
 
@@ -170,7 +170,7 @@ class ProjectionWidget(Canvas):
 
                 self.axes.plot(xdata[w], ydata[w], linestyle='None',
                     marker='o', markersize=self.markersize,
-                    markerfacecolor='k',  markeredgecolor='k')
+                    markerfacecolor='k',  markeredgecolor='k', alpha=1.0)
 
                 self.axes.hold(True)
 
@@ -185,7 +185,7 @@ class ProjectionWidget(Canvas):
                 self.axes.plot(xdata[cluster.member], ydata[cluster.member],
                         marker='o', markersize=self.markersize,
                         markerfacecolor=col, markeredgecolor=col,
-                        linestyle='None')
+                        linestyle='None', alpha=0.99)
                 self.axes.hold(True)
 
                 # Plot refractory spikes
@@ -260,8 +260,13 @@ class ProjectionWidget(Canvas):
 
         self.axes.set_xlim(self.prof_limits[0])
         self.axes.set_ylim(self.prof_limits[1])
-        self.axes.set_xticks([])
-        self.axes.set_yticks([])
+        for tick in self.axes.xaxis.get_major_ticks():
+            tick.set_pad(-15)
+        for tick in self.axes.yaxis.get_major_ticks():
+            tick.set_pad(-15)
+            tick.label2.set_horizontalalignment('left')
+#        self.axes.set_xticks([])
+#        self.axes.set_yticks([])
 
         # Now draw the boundaries
         for cluster, check in cl_list:

@@ -694,7 +694,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             # If this is the first color, we can pick whatever we want
             if color_list == []:
-                new_cluster.color = (0, 50, 150)
+                new_cluster.color = (50, 170, 170)
             else:
                 c = unique_colors.newcolor(color_list)
                 new_cluster.color = tuple(map(lambda x: int(x * 255), c))
@@ -1078,17 +1078,23 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.checkBox_junk.setChecked(True)
         self.radioButton_junk.cluster_reference = self.junk_cluster
 
-        # If we're going to auto-load boundaries might as well
-        # use the stored info for PCA
+        # Autoload any existing boundary files for this data set
+        imported_bounds = False
+
+        boundfilename = str(fname) + os.extsep + 'bounds'
+        if os.path.exists(boundfilename) and (not imported_bounds):
+            print "Found boundary file", boundfilename
+            self.importBounds(boundfilename)
+            imported_bounds = True
+
         (root, ext) = os.path.splitext(str(fname))
         boundfilename = root + os.extsep + 'bounds'
         if os.path.exists(boundfilename):
             print "Found boundary file", boundfilename
             self.importBounds(boundfilename)
-#        else:
-#            self.spikeset.calculateFeatures()
+            imported_bounds = True
 
-        # Set the combo boxes to the current feature for now
+       # Set the combo boxes to the current feature for now
         self.ui.comboBox_feature_x.clear()
         for name in self.spikeset.featureNames():
             self.ui.comboBox_feature_x.addItem(name)
@@ -1101,49 +1107,38 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.ui.stackedWidget.setCurrentIndex(0)
 
-        # Now try to fit a GMM, hardcoded for testing, add a gui later
-        #mmodel.fitGMMMembershipModel(self.spikeset, self)
+        # see if there is a modified klustakwik cluster file to load
+        kkwikfilename = fname + os.extsep + 'ackk'
+        if (not imported_bounds) and os.path.exists(kkwikfilename):
+            print "Found KKwik cluster file",kkwikfilename
 
-        # see if there is a klustakwik cluster file to load
-        kkwikfilename = root + os.extsep + 'clu.1'
-        if os.path.exists(kkwikfilename):
-            print "Found KKwik cluster file",
-            f = open(kkwikfilename, 'r');
-            n_clust = int(f.readline())
+            temp = os.stat(kkwikfilename)
+            num_samps = temp.st_size / 2
+
+            if num_samps != self.spikeset.N:
+                print "Sample counts don't match up, invalid .ackk file"
+                return
+
+            f = open(kkwikfilename, 'rb');
+            labels = np.fromfile(f, dtype=np.dtype('<h'), count=num_samps)
             f.close()
-            print "with", n_clust, "mixture components:"
-            labels = np.loadtxt(kkwikfilename)
-            labels = labels[1:]
-            p = self.spikeset.featureByName('Peak').data
 
-            # find the spike detection threshold, or an estimate of the
-            # multi unit cloud peak
-            pchan = np.argmax(p, axis=1)
-            peak_thresh = np.zeros((p.shape[1]))
-            for i in xrange(p.shape[1]):
-                peak_thresh[i] = np.min(p[pchan==i,i])
+            k = np.unique(labels)
 
-            for i in range(1, n_clust): # skip 1, its the 'noise' cluster
-                update = True
-                print i+1,
-                sys.stdout.flush()
-                cluster = self.add_cluster()
-                cluster.membership_model.append(
-                        mmodel.PrecalculatedLabelsMembershipModel(labels, [i+1]))
-                cluster.calculateMembership(self.spikeset)
-                # figure out where this sits compared to the peak threshold
-                relpeak = np.mean(p[cluster.member,:], axis=0) / peak_thresh
-#                print relpeak, np.mean(relpeak)
-                if cluster.stats['refr_frac'] > 0.015 or \
-                        np.abs(cluster.stats['wv_com']) >= 0.15 or \
-                        np.mean(relpeak) < 1.5:
-                    #print 'Deleting auto-cluster with > 1% refractory'
-                    self.delete_cluster(cluster)
-                    update = False
+            if np.size(k) > 1:
+                print "Importing clusters from .ackk",
+                for i in k:
+                    if i == 0: continue
+                    print i,
+                    sys.stdout.flush()
+                    cluster = self.add_cluster()
+                    cluster.membership_model.append(
+                            mmodel.PrecalculatedLabelsMembershipModel(labels, [i]))
+                    cluster.calculateMembership(self.spikeset)
+                print "."
 
-            if update:
                 self.update_active_cluster()
-            self.updateFeaturePlot()
+                self.updateFeaturePlot()
 
     def button_load_click(self):
         fname = QtGui.QFileDialog.getOpenFileName(self,
@@ -1287,24 +1282,44 @@ class PyClustMainWindow(QtGui.QMainWindow):
         (root, ext) = os.path.splitext(self.current_filename)
 
         # Save the bounds to a format we can easily read back in later
-        outfilename = root + os.extsep + 'bounds'
+        #outfilename = root + os.extsep + 'bounds'
+        outfilename = self.current_filename + os.extsep + 'bounds'
+
         outfile = open(outfilename, 'wb')
 
-        # save special info about the features, such as PCA coeffs
-        pickle.dump(self.spikeset.feature_special, outfile)
+        versionstr = "0.0.1"
+        if versionstr == "0.0.1":
+            dumping = dict()
+            dumping['feature_special'] = self.spikeset.feature_special
+            dumping['matches'] = self.matches
 
-        pickle.dump(self.matches, outfile)
+            sb = [{'color': cluster.color, 'bounds': cluster.bounds,
+                'wave_bounds': cluster.wave_bounds,
+                'add_bounds':  cluster.add_bounds,
+                'del_bounds': cluster.del_bounds,
+                'mmodel': cluster.membership_model} \
+                        for cluster in  self.clusters]
+            dumping['clusters'] = sb
 
-        save_bounds = [(cluster.color, cluster.bounds, cluster.wave_bounds,
-            cluster.add_bounds, cluster.del_bounds)
-            for cluster in self.clusters]
+            pickle.dump(versionstr, outfile)
+            pickle.dump(dumping, outfile)
+        else:
+            # save special info about the features, such as PCA coeffs
+            pickle.dump(self.spikeset.feature_special, outfile)
+            pickle.dump(self.matches, outfile)
 
-        pickle.dump(save_bounds, outfile)
-        outfile.close()
-        print "Saved bounds to", outfilename
+            save_bounds = [(cluster.color, cluster.bounds, cluster.wave_bounds,
+                cluster.add_bounds, cluster.del_bounds,
+                cluster.membership_model)
+                for cluster in self.clusters]
+
+            pickle.dump(save_bounds, outfile)
+            outfile.close()
+            print "Saved bounds to", outfilename
 
         # Save the cluster membership vectors in matlab format
-        outfilename = root + os.extsep + 'mat'
+        #outfilename = root + os.extsep + 'mat'
+        outfilename = self.current_filename + os.extsep + 'mat'
 
         cluster_member = np.column_stack(tuple([cluster.member
             for cluster in self.clusters]))
@@ -1339,26 +1354,55 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         if os.path.exists(filename):
             infile = open(filename, 'rb')
-            special = pickle.load(infile)
-            self.spikeset.calculateFeatures(special)
 
-            self.matches = pickle.load(infile)
+            versionstr = pickle.load(infile)
+            if versionstr == "0.0.1":
+                print "Saved bounds version 0.0.1"
 
-            saved_bounds = pickle.load(infile)
-            infile.close()
-            print "Found", len(saved_bounds),
-            print "bounds to import, creating clusters."
-            self.redrawing_details = True
-            for (col, bound, wave_bound, add_bound, del_bound) in saved_bounds:
-                clust = self.add_cluster(col)
-                clust.bounds = bound
-                clust.wave_bounds = wave_bound
-                clust.add_bounds = add_bound
-                clust.del_bounds = del_bound
-                clust.calculateMembership(self.spikeset)
-            self.redrawing_details = False
-            self.updateClusterDetailPlots()
-            self.updateFeaturePlot()
+                dumped = pickle.load(infile)
+                self.spikeset.calculateFeatures(dumped['feature_special'])
+                self.matches = dumped['matches']
+
+                self.redrawing_details = True
+                print "Founds", len(dumped['clusters']),
+                print "bounds to import, creating clusters."
+                for cluster in dumped['clusters']:
+                    clust = self.add_cluster(cluster['color'])
+                    clust.bounds = cluster['bounds']
+                    clust.wave_bounds = cluster['wave_bounds']
+                    clust.add_bounds = cluster['add_bounds']
+                    clust.del_bounds = cluster['del_bounds']
+                    clust.membership_model = cluster['mmodel']
+                    clust.calculateMembership(self.spikeset)
+                self.redrawing_details = False
+                self.updateClusterDetailPlots()
+                self.updateFeaturePlot()
+
+            else:
+                print "Saved bounds version 0.0.0"
+
+                # the old, very inflexible way of doing things
+                special = versionstr
+                #special = pickle.load(infile)
+                self.spikeset.calculateFeatures(special)
+
+                self.matches = pickle.load(infile)
+
+                saved_bounds = pickle.load(infile)
+                infile.close()
+                print "Found", len(saved_bounds),
+                print "bounds to import, creating clusters."
+                self.redrawing_details = True
+                for (col, bound, wave_bound, add_bound, del_bound) in saved_bounds:
+                    clust = self.add_cluster(col)
+                    clust.bounds = bound
+                    clust.wave_bounds = wave_bound
+                    clust.add_bounds = add_bound
+                    clust.del_bounds = del_bound
+                    clust.calculateMembership(self.spikeset)
+                self.redrawing_details = False
+                self.updateClusterDetailPlots()
+                self.updateFeaturePlot()
 
     def copyCluster(self):
         if self.activeClusterRadioButton():
@@ -1366,6 +1410,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
             backup = self.activeClusterRadioButton().cluster_reference
             clust = self.add_cluster()
             clust.bounds = backup.bounds
+            clust.membership_model = backup.membership_model
+            clust.add_bounds = backup.add_bounds
             clust.calculateMembership(self.spikeset)
             self.redrawing_details = False
             self.updateClusterDetailPlots()
