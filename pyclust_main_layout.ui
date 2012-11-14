@@ -1443,8 +1443,204 @@
      <height>21</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionOpen"/>
+    <addaction name="actionSave"/>
+    <addaction name="actionImport_Bound"/>
+    <addaction name="separator"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <widget class="QMenu" name="menuCluster">
+    <property name="title">
+     <string>Cluster</string>
+    </property>
+    <addaction name="actionAdd_Cluster"/>
+    <addaction name="actionMerge_Clusters"/>
+    <addaction name="actionCopy_Cluster"/>
+    <addaction name="separator"/>
+    <addaction name="actionDelete_Cluster"/>
+   </widget>
+   <widget class="QMenu" name="menuLimits">
+    <property name="title">
+     <string>Limits</string>
+    </property>
+    <addaction name="actionAdd_Limit"/>
+    <addaction name="actionDelete_Limit"/>
+    <addaction name="actionAutotrim"/>
+    <addaction name="separator"/>
+    <addaction name="actionEliptical"/>
+    <addaction name="separator"/>
+    <addaction name="actionWaveform_Cutter"/>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <widget class="QMenu" name="menuMarker_Size">
+     <property name="title">
+      <string>Marker Size</string>
+     </property>
+     <addaction name="actionMarker_Size1"/>
+     <addaction name="actionMarker_Size3"/>
+     <addaction name="actionMarker_Size5"/>
+    </widget>
+    <widget class="QMenu" name="menuProjection_Type">
+     <property name="title">
+      <string>Projection Type</string>
+     </property>
+     <addaction name="actionScatter"/>
+     <addaction name="actionDensity"/>
+     <addaction name="actionLog_Density"/>
+    </widget>
+    <addaction name="actionRefractory"/>
+    <addaction name="menuMarker_Size"/>
+    <addaction name="menuProjection_Type"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuCluster"/>
+   <addaction name="menuLimits"/>
+   <addaction name="menuView"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionOpen">
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+  <action name="actionSave">
+   <property name="text">
+    <string>Save</string>
+   </property>
+  </action>
+  <action name="actionImport_Bound">
+   <property name="text">
+    <string>Import Bound</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>Quit</string>
+   </property>
+  </action>
+  <action name="actionAdd_Cluster">
+   <property name="text">
+    <string>Add Cluster</string>
+   </property>
+  </action>
+  <action name="actionCopy_Cluster">
+   <property name="text">
+    <string>Copy Cluster</string>
+   </property>
+  </action>
+  <action name="actionDelete_Cluster">
+   <property name="text">
+    <string>Delete Cluster</string>
+   </property>
+  </action>
+  <action name="actionMerge_Clusters">
+   <property name="text">
+    <string>Merge Clusters</string>
+   </property>
+  </action>
+  <action name="actionAdd_Limit">
+   <property name="text">
+    <string>Add Limit</string>
+   </property>
+  </action>
+  <action name="actionDelete_Limit">
+   <property name="text">
+    <string>Delete Limit</string>
+   </property>
+  </action>
+  <action name="actionWaveform_Cutter">
+   <property name="text">
+    <string>Waveform Cutter</string>
+   </property>
+  </action>
+  <action name="actionAutotrim">
+   <property name="text">
+    <string>Autotrim</string>
+   </property>
+  </action>
+  <action name="actionRefractory">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Refractory</string>
+   </property>
+  </action>
+  <action name="actionMarker_Size1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>1</string>
+   </property>
+  </action>
+  <action name="actionMarker_Size3">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>3</string>
+   </property>
+  </action>
+  <action name="actionMarker_Size5">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>5</string>
+   </property>
+  </action>
+  <action name="actionScatter">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Scatter</string>
+   </property>
+  </action>
+  <action name="actionDensity">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Density</string>
+   </property>
+  </action>
+  <action name="actionLog_Density">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Log Density</string>
+   </property>
+  </action>
+  <action name="actionEliptical">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Eliptical Bounds</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -1454,7 +1650,248 @@
   </customwidget>
  </customwidgets>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>pushButton</sender>
+   <signal>clicked()</signal>
+   <receiver>actionOpen</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>879</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_save</sender>
+   <signal>clicked()</signal>
+   <receiver>actionSave</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>940</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_import</sender>
+   <signal>clicked()</signal>
+   <receiver>actionImport_Bound</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1001</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_addLimit</sender>
+   <signal>clicked()</signal>
+   <receiver>actionAdd_Limit</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>699</x>
+     <y>110</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_deleteLimit</sender>
+   <signal>clicked()</signal>
+   <receiver>actionDelete_Limit</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>771</x>
+     <y>110</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_autotrim</sender>
+   <signal>clicked()</signal>
+   <receiver>actionAutotrim</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>735</x>
+     <y>171</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_add_cluster</sender>
+   <signal>clicked()</signal>
+   <receiver>actionAdd_Cluster</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>735</x>
+     <y>617</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_delete_cluster</sender>
+   <signal>clicked()</signal>
+   <receiver>actionDelete_Cluster</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>735</x>
+     <y>646</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_copy_cluster</sender>
+   <signal>clicked()</signal>
+   <receiver>actionCopy_Cluster</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>735</x>
+     <y>675</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_wavecutter_start</sender>
+   <signal>clicked()</signal>
+   <receiver>actionWaveform_Cutter</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>735</x>
+     <y>704</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_refractory</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>actionRefractory</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>368</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_scatter</sender>
+   <signal>clicked()</signal>
+   <receiver>actionScatter</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>441</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_density</sender>
+   <signal>clicked()</signal>
+   <receiver>actionDensity</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>506</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_log_density</sender>
+   <signal>clicked()</signal>
+   <receiver>actionLog_Density</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>581</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_ellipse</sender>
+   <signal>clicked()</signal>
+   <receiver>actionEliptical</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>656</x>
+     <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
  <buttongroups>
   <buttongroup name="buttonGroup_scatter_plot_type"/>
   <buttongroup name="buttonGroup_trimmer"/>

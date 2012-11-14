@@ -20,15 +20,16 @@ import pickle
 import os
 import sys
 import time
+import struct
 
 from gui import Ui_MainWindow
 from gui_sessiontracker import Ui_SessionTrackerDialog
+
 import spikeset
 import featurewidget
 import unique_colors
-#import features
-
 import mmodel
+
 
 class PyClustSessionTrackerDialog(QtGui.QDialog):
 
@@ -185,7 +186,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.stackedWidget.setCurrentIndex(0)
         self.updateFeaturePlot()
 
-    def switch_to_autotrim(self):
+    @QtCore.pyqtSlot('bool')
+    def on_actionAutotrim_triggered(self, checked=None):
         active = self.activeClusterRadioButton()
         if active and active.cluster_reference != self.junk_cluster:
             clust = active.cluster_reference
@@ -209,6 +211,68 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             self.ui.pushButton_autotrim_apply.setEnabled(True)
             self.ui.pushButton_autotrim_cancel.setEnabled(True)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionRefractory_triggered(self, checked=None):
+        self.mp_proj.setRefractory(checked)
+        self.ui.checkBox_refractory.blockSignals(True)
+        self.ui.checkBox_refractory.setChecked(checked)
+        self.ui.checkBox_refractory.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionScatter_triggered(self, checked=None):
+        if checked:
+            self.mp_proj.setPlotType(-2)
+            self.ui.radioButton_scatter.blockSignals(True)
+            self.ui.radioButton_scatter.setChecked(True)
+            self.ui.radioButton_scatter.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionDensity_triggered(self, checked=None):
+        if checked:
+            self.mp_proj.setPlotType(-3)
+            self.ui.radioButton_density.blockSignals(True)
+            self.ui.radioButton_density.setChecked(True)
+            self.ui.radioButton_density.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionLog_Density_triggered(self, checked=None):
+        if checked:
+            self.mp_proj.setPlotType(-4)
+            self.ui.radioButton_log_density.blockSignals(True)
+            self.ui.radioButton_log_density.setChecked(True)
+            self.ui.radioButton_log_density.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionMarker_Size1_triggered(self, checked=None):
+        if checked:
+            self.mp_proj.setMarkerSize(1)
+            self.ui.spinBox_markerSize.blockSignals(True)
+            self.ui.spinBox_markerSize.setValue(1)
+            self.ui.spinBox_markerSize.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionMarker_Size3_triggered(self, checked=None):
+        if checked:
+            self.mp_proj.setMarkerSize(3)
+            self.ui.spinBox_markerSize.blockSignals(True)
+            self.ui.spinBox_markerSize.setValue(3)
+            self.ui.spinBox_markerSize.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionMarker_Size5_triggered(self, checked=None):
+        if checked:
+            self.mp_proj.setMarkerSize(5)
+            self.ui.spinBox_markerSize.blockSignals(True)
+            self.ui.spinBox_markerSize.setValue(5)
+            self.ui.spinBox_markerSize.blockSignals(False)
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionEliptical_triggered(self, checked=None):
+        self.mp_proj.setBoundaryElliptical(checked)
+        self.ui.checkBox_ellipse.blockSignals(True)
+        self.ui.checkBox_ellipse.setChecked(checked)
+        self.ui.checkBox_ellipse.blockSignals(False)
 
     def autotrim_apply(self):
         self.trim_cluster = None
@@ -297,21 +361,20 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.redrawing_details = False
         self.unsaved = False
 
+        # Create action groups for the mnu items
+        self.ui.agroup_marker = QtGui.QActionGroup(self, exclusive=True)
+        self.ui.agroup_marker.addAction(self.ui.actionMarker_Size1)
+        self.ui.agroup_marker.addAction(self.ui.actionMarker_Size3)
+        self.ui.agroup_marker.addAction(self.ui.actionMarker_Size5)
+
+        self.ui.agroup_scatter = QtGui.QActionGroup(self, exclusive=True)
+        self.ui.agroup_scatter.addAction(self.ui.actionScatter)
+        self.ui.agroup_scatter.addAction(self.ui.actionDensity)
+        self.ui.agroup_scatter.addAction(self.ui.actionLog_Density)
+
         # Connect the handlers
         self.ui.pushButton_identify.clicked.connect(
                 self.switch_to_sessiontracker)
-
-        QtCore.QObject.connect(self.ui.pushButton,
-            QtCore.SIGNAL("clicked()"),  self.button_load_click)
-
-        QtCore.QObject.connect(self.ui.pushButton_copy_cluster,
-            QtCore.SIGNAL("clicked()"), self.copyCluster)
-
-        QtCore.QObject.connect(self.ui.pushButton_import,
-            QtCore.SIGNAL("clicked()"), self.importBounds)
-
-        QtCore.QObject.connect(self.ui.pushButton_save,
-            QtCore.SIGNAL("clicked()"), self.save)
 
         QtCore.QObject.connect(self.ui.comboBox_feature_x_chan,
             QtCore.SIGNAL("currentIndexChanged(int)"),
@@ -334,15 +397,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         QtCore.QObject.connect(self.ui.pushButton_previous_projection,
             QtCore.SIGNAL("clicked()"), self.button_prev_feature_click)
-
-#        QtCore.QObject.connect(self.ui.buttonGroup_scatter_plot_type,
-#            QtCore.SIGNAL("buttonClicked(int)"), self.updateFeaturePlot)
-
-        QtCore.QObject.connect(self.ui.pushButton_addLimit,
-            QtCore.SIGNAL("clicked()"), self.button_add_limit_click)
-
-        QtCore.QObject.connect(self.ui.pushButton_deleteLimit,
-            QtCore.SIGNAL("clicked()"), self.button_delete_limit_click)
 
         QtCore.QObject.connect(self.ui.pushButton_wavecutter_done,
             QtCore.SIGNAL("clicked()"), self.switch_to_maindisplay)
@@ -385,7 +439,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             lambda x: self.updateWavecutterPlot() if x == 0 \
                 else self.updateOutlierPlot())
 
-        self.ui.pushButton_autotrim.clicked.connect(self.switch_to_autotrim)
         self.ui.pushButton_autotrim_apply.clicked.connect(self.autotrim_apply)
         self.ui.pushButton_autotrim_cancel.clicked.connect(self.autotrim_cancel)
 
@@ -405,10 +458,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         layout.addItem(QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum,
             QtGui.QSizePolicy.Expanding))
-        QtCore.QObject.connect(self.ui.pushButton_add_cluster,
-            QtCore.SIGNAL("clicked()"), self.button_add_cluster_click)
-        QtCore.QObject.connect(self.ui.pushButton_delete_cluster,
-            QtCore.SIGNAL("clicked()"), self.delete_cluster)
 
         # Add the unclustered entry
         layout = self.labels_container.layout()
@@ -434,40 +483,25 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         layout.insertLayout(0, hlayout)
 
-        # Create short hands for the plot widgets
-
         # Create the projection widget
-
         self.ui.verticalLayout_3.removeWidget(self.ui.mplwidget_projection)
-
         self.mp_proj = featurewidget.ProjectionWidget()
         self.mp_proj.setAutoFillBackground(True)
         self.mp_proj.setObjectName("mplwidget_projection")
         self.ui.verticalLayout_3.addWidget(self.mp_proj)
 
-
         # Connect the relevant signals/slots
-        # Signals for unclustered show checkbox
-
         QtCore.QObject.connect(self.mp_proj,
                 QtCore.SIGNAL("featureRedrawRequired()"),
                 self.updateFeaturePlot)
 
-        # Plot type radio button signals
-        QtCore.QObject.connect(self.ui.buttonGroup_scatter_plot_type,
-                QtCore.SIGNAL("buttonClicked(int)"),
-                self.mp_proj.setPlotType)
-
+        # Signals for unclustered show checkbox
         self.ui.checkBox_show_unclustered.stateChanged.connect(
                 self.mp_proj.setShowUnclustered)
 
         # Signals for unclustered exclusive checkbox
         self.ui.checkBox_show_unclustered_exclusive.stateChanged.connect(
                 self.mp_proj.setUnclusteredExclusive)
-
-        # Signals for refractory checkbox
-        self.ui.checkBox_refractory.stateChanged.connect(
-                self.mp_proj.setRefractory)
 
         # Signals for marker size
         self.ui.spinBox_markerSize.valueChanged.connect(
@@ -481,13 +515,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 QtCore.SIGNAL("ellipseBoundaryDrawn(PyQt_PyObject)"),
                 self.addBoundary)
 
-        # Signal for elliptical boundary checkbox
-        self.ui.checkBox_ellipse.stateChanged.connect(
-                self.mp_proj.setBoundaryElliptical)
-
+        # Create shorter handles to important widgets
         self.mp_wave = self.ui.mplwidget_waveform
         self.mp_isi = self.ui.mplwidget_isi
-        #self.mp_proj = self.ui.mplwidget_projection
         self.mp_wavecutter = self.ui.mplwidget_wavecutter
         self.mp_outlier = self.ui.mplwidget_outliers
         self.mp_drift = self.ui.mplwidget_drift
@@ -496,7 +526,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         bgcolor = (pal.red() / 255.0, pal.blue() / 255.0, pal.green() / 255.0)
 
         # Set the window background color on plots
-
         self.mp_wave.figure.clear()
         self.mp_wave.figure.set_facecolor(bgcolor)
 
@@ -550,7 +579,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mp_wave.axes[i].set_yticks([])
 
         # Set up ISI plot axes
-
         self.isi_bins = np.logspace(np.log10(0.1), np.log10(1e5), 100)
         self.isi_bin_centers = (self.isi_bins[0:-1] + self.isi_bins[1:]) / 2
 
@@ -592,7 +620,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 left=0, right=1, hspace=0.01, wspace=0.01)
 
         # Clear the stats labels
-
         self.ui.label_spike_count.setText('')
         self.ui.label_mean_rate.setText('')
         self.ui.label_burst.setText('')
@@ -751,6 +778,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         return new_cluster
 
+    @QtCore.pyqtSlot('bool')
+    def on_actionDelete_Cluster_triggered(self, checked=None):
+        self.delete_cluster()
+
     def delete_cluster(self, cluster=None):
         if cluster == None:
             if ((not self.activeClusterRadioButton()) or
@@ -798,7 +829,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.unsaved = True
 
     # Tell the projection widget to start drawing a boundary
-    def button_add_limit_click(self):
+    @QtCore.pyqtSlot('bool')
+    def on_actionAdd_Limit_triggered(self, checked=None):
         if not self.spikeset:
             return
 
@@ -824,7 +856,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateFeaturePlot()
 
     # Delete the active cluster boundary on the current projection
-    def button_delete_limit_click(self):
+    @QtCore.pyqtSlot('bool')
+    def on_actionDelete_Limit_triggered(self, checked=None):
         if not self.spikeset:
             return
 
@@ -860,7 +893,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.updateFeaturePlot()
 
-    def button_add_cluster_click(self):
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionAdd_Cluster_triggered(self, checked=None):
         self.add_cluster()
 
     def feature_channel_x_changed(self, index):
@@ -1028,7 +1063,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if reply == QtGui.QMessageBox.Cancel:
                 return
             if reply == QtGui.QMessageBox.Yes:
-                self.save()
+                self.on_actionSave_triggered()
             if reply == QtGui.QMessageBox.No:
                 pass
 
@@ -1110,21 +1145,42 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # see if there is a modified klustakwik cluster file to load
         kkwikfilename = fname + os.extsep + 'ackk'
         if (not imported_bounds) and os.path.exists(kkwikfilename):
-            print "Found KKwik cluster file",kkwikfilename
-
-            temp = os.stat(kkwikfilename)
-            num_samps = temp.st_size / 2
+            print "Found KKwik cluster file", kkwikfilename, ':',
+            # Everything is little endian
+            # A .ackk record is as folows:
+            # Header:
+            # uint32 + n x char - subject string
+            # uint32 + n x char - session date string
+            # uint64 - num spikes
+            # uint16 x N - spike cluster IDs
+            f = open(kkwikfilename, 'rb');
+            subjectstr = spikeset.readStringFromBinary(f)
+            datestr = spikeset.readStringFromBinary(f)
+            num_samps, = struct.unpack('<Q', f.read(8))
 
             if num_samps != self.spikeset.N:
                 print "Sample counts don't match up, invalid .ackk file"
+                print num_samps
+                print self.spikeset.N
+                f.close()
+                return
+            elif subjectstr != self.spikeset.subject:
+                print "Subject lines don't match up, invalid .ackk file"
+                f.close()
+                return
+            elif datestr != self.spikeset.session:
+                print "Session date strings don't match up, invalid .ackk file"
+                f.close()
                 return
 
-            f = open(kkwikfilename, 'rb');
             labels = np.fromfile(f, dtype=np.dtype('<h'), count=num_samps)
             f.close()
 
+            # get a list of cluster numbers
             k = np.unique(labels)
+            print np.size(k)-1, 'components.'
 
+            # create the clusters for each component in the KK file.
             if np.size(k) > 1:
                 print "Importing clusters from .ackk",
                 for i in k:
@@ -1140,7 +1196,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.update_active_cluster()
                 self.updateFeaturePlot()
 
-    def button_load_click(self):
+    @QtCore.pyqtSlot('bool')
+    def on_actionOpen_triggered(self, checked=None):
         fname = QtGui.QFileDialog.getOpenFileName(self,
             'Open ntt file',
             filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
@@ -1275,7 +1332,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.mp_drift.draw()
 
-    def save(self):
+    @QtCore.pyqtSlot('bool')
+    def on_actionSave_triggered(self, checked=None):
         if not (self.current_filename and self.clusters):
             return
 
@@ -1344,14 +1402,15 @@ class PyClustMainWindow(QtGui.QMainWindow):
         print "Saved cluster membership to", outfilename
         self.unsaved = False
 
-    def importBounds(self, filename=None):
-        if filename == None:
-            filename = QtGui.QFileDialog.getOpenFileName(self,
-                'Open ntt file', filter='*.bounds')
-
+    @QtCore.pyqtSlot('bool')
+    def on_actionImport_Bound_triggered(self, checked=None):
+        filename = QtGui.QFileDialog.getOpenFileName(self,
+            'Open ntt file', filter='*.bounds')
         if not filename:
             return
+        self.importBounds(filename)
 
+    def importBounds(self, filename=None):
         if os.path.exists(filename):
             infile = open(filename, 'rb')
 
@@ -1404,7 +1463,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.updateClusterDetailPlots()
                 self.updateFeaturePlot()
 
-    def copyCluster(self):
+    @QtCore.pyqtSlot('bool')
+    def on_actionCopy_Cluster_triggered(self, checked=None):
         if self.activeClusterRadioButton():
             self.redrawing_details = True
             backup = self.activeClusterRadioButton().cluster_reference
@@ -1430,7 +1490,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             event.ignore()
         if reply == QtGui.QMessageBox.Yes:
             event.accept()
-            self.save()
+            self.on_actionSave_triggered()
         if reply == QtGui.QMessageBox.No:
             event.accept()
 

@@ -263,7 +263,7 @@ class ProjectionWidget(Canvas):
         for tick in self.axes.xaxis.get_major_ticks():
             tick.set_pad(-15)
         for tick in self.axes.yaxis.get_major_ticks():
-            tick.set_pad(-15)
+            tick.set_pad(-20)
             tick.label2.set_horizontalalignment('left')
 #        self.axes.set_xticks([])
 #        self.axes.set_yticks([])
