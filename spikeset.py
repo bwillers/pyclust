@@ -188,7 +188,7 @@ class Spikeset:
             print "Spikeset hashes match, loading features info."
             #self.features = pickle.load(f)
             self.calculateFeatures(pickle.load(f))
-            #self.features.append(features.Feature_Barycenter(self))
+            self.features.append(features.Feature_Barycenter(self))
         else:
             print "Hashes don't match, features are from a different dataset."
 
@@ -487,7 +487,7 @@ class Cluster:
                         1.0 - 0.1 / np.size(data, axis=0)])
                 # Sort them so we pick the biggest if fitness funcs are equal
                 confs = np.sort(confs)[::-1]
-                kvals = scipy.stats.chi2.ppf(confs,1)
+                kvals = scipy.stats.chi2.ppf(confs,2) # 2d projections, 2 dof
                 # Select the data for this projection
                 pdata = data[:,[proj_x, proj_y]]
                 # Estimate the ellipse for the projection using the main comp

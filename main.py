@@ -29,6 +29,7 @@ import spikeset
 import featurewidget
 import unique_colors
 import mmodel
+import boundaries
 
 
 class PyClustSessionTrackerDialog(QtGui.QDialog):
@@ -1110,8 +1111,27 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.junk_cluster = spikeset.Cluster(self.spikeset)
         self.junk_cluster.color = (255, 0, 0)
         self.junk_cluster.check = self.checkBox_junk
-        self.checkBox_junk.setChecked(True)
+        self.checkBox_junk.setChecked(False)
         self.radioButton_junk.cluster_reference = self.junk_cluster
+
+        # Add some points to the junk cluster since true spikes are rarely >1mv
+        d = np.max(self.spikeset.featureByName('Peak').data, axis=0) + 10
+        jthresh = 1e3
+        for i in range(d.shape[0]):
+            for j in range(i+1, d.shape[0]):
+                jbounds = np.zeros((4,2))
+                jbounds[0,:] = [ min([d[i], jthresh]), min([d[j], jthresh]) ]
+                jbounds[1,:] = [ max([d[i], jthresh]), min([d[j], jthresh]) ]
+                jbounds[2,:] = [ max([d[i], jthresh]), max([d[j], jthresh]) ]
+                jbounds[3,:] = [ min([d[i], jthresh]), max([d[j], jthresh]) ]
+
+                jbound = boundaries.BoundaryPolygon2D(('Peak', 'Peak'), \
+                        (i,j), jbounds)
+
+                self.junk_cluster.add_bounds.append(jbound)
+
+        self.junk_cluster.calculateMembership(self.spikeset)
+        self.mp_proj.resetLimits()
 
         # Autoload any existing boundary files for this data set
         imported_bounds = False
