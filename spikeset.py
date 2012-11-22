@@ -6,17 +6,17 @@ Created on Fri Mar 30 04:18:30 2012
 """
 import random
 import struct
-import time
+#import time
 import os
 import pickle
 import hashlib
 
-import scipy.special as spspec
+#import scipy.special as spspec
 import scipy.stats
 import numpy as np
 #import pylab
 import sklearn.mixture
-import matplotlib as mpl
+#import matplotlib as mpl
 from PyQt4 import QtGui
 
 import features
@@ -24,6 +24,7 @@ import boundaries
 
 # pickle needs this to load the saved bounds
 from boundaries import BoundaryPolygon2D
+
 
 def loadNtt(filename):
     f = open(filename, 'rb')
@@ -57,12 +58,14 @@ def loadNtt(filename):
     return Spikeset(temp['spikes'] * np.reshape(a2d_conversion, [1, 1, 4]),
             temp['time'], 8, fs)
 
+
 def readStringFromBinary(f):
     strlen, = struct.unpack('<I', f.read(4))
     if strlen:
         return f.read(strlen)
     else:
         return ''
+
 
 def loadDotSpike(filename):
     f = open(filename, 'rb')
@@ -120,6 +123,7 @@ def loadDotSpike(filename):
     return Spikeset(temp['spikes'] * np.reshape(uvolt_conversion, [1, 1, 4]),
             temp['time'], peak_align, fs, subject=subjectstr, session=datestr)
 
+
 def load(filename):
     # Load the file
     if filename.endswith('.ntt'):
@@ -149,8 +153,8 @@ def load(filename):
 # feature contains a name, channel count and data
 # boundary contains a feature name, and polygon boundary
 # cluster contains a list of boundaries, along with some summary statistics
-
 # convention: N number of spikes, C number of channels, L length of waveforms
+
 
 # Spike data is N x L x C
 class Spikeset:
@@ -226,6 +230,7 @@ class Spikeset:
                 return feature
         return None
 
+
 # Clusters have a color, a set of boundaries and some calculation functions
 class Cluster:
     def __init__(self, spikeset):
@@ -276,7 +281,7 @@ class Cluster:
     def calculateMembership(self, spikeset):
         self.mahal_valid = False
         if (not self.bounds) and (not self.add_bounds) and \
-            (not self.membership_model):
+                (not self.membership_model):
             self.member = np.array([False] * spikeset.N)
             self.isi = []
             self.refractory = np.array([False] * spikeset.N)
@@ -341,13 +346,14 @@ class Cluster:
             com_x = np.arange(u_wv.shape[0])
             com_chan = (np.sum(u_wv_2.T * com_x, axis=1) /
                     np.sum(u_wv_2, axis=0) - spikeset.peak_index)
-            p = u_wv[spikeset.peak_index,:]
+            p = u_wv[spikeset.peak_index, :]
             # peak weighted average of the channels
             self.stats['wv_com'] = sum(com_chan * p) / sum(p) * spikeset.dt_ms
             #print self.stats['wv_com']
 
             self.stats['burst'] = (100.0 * np.sum(self.isi <
-                self.burst_period).astype(float)) / (self.stats['num_spikes'] - 1)
+                self.burst_period).astype(float)) / \
+                (self.stats['num_spikes'] - 1)
 
             self.stats['refr_count'] = np.sum(self.isi < self.refr_period)
 
@@ -359,7 +365,8 @@ class Cluster:
             if alpha > 0.25:
                 self.stats['refr_fp'] = 100.0
             else:
-                self.stats['refr_fp'] = 100 * 0.5 * (1 - np.sqrt(1 - 4 * alpha))
+                self.stats['refr_fp'] = 100 * 0.5 * \
+                        (1 - np.sqrt(1 - 4 * alpha))
 
             # csi and isolation needs peaks
             p = features.Feature_Peak(spikeset).data
@@ -367,21 +374,21 @@ class Cluster:
                 self.stats['isolation'] = np.NAN
             else:
                 try:
-                    cvi= np.linalg.inv(np.cov(np.transpose(p[self.member, :])))
-                    u = p-np.mean(p[self.member, :], axis=0)
+                    cvi = np.linalg.inv(np.cov(np.transpose(p[self.member, :])))
+                    u = p - np.mean(p[self.member, :], axis=0)
                     m = np.sum(np.dot(u, cvi) * u, axis=1)
                     m = np.sort(m)
-                    self.stats['isolation'] = m[self.stats['num_spikes']* 2 - 1]
+                    self.stats['isolation'] = m[self.stats['num_spikes'] * 2 - 1]
                 except Exception:
                     self.stats['isolation'] = np.NAN
 
-            chan = np.round(np.mean(np.argmax(p[self.member,:], axis=1)))
+            chan = np.round(np.mean(np.argmax(p[self.member, :], axis=1)))
             delta = np.diff(p[self.member, chan])
 
-            delta= delta[np.logical_and(
+            delta = delta[np.logical_and(
                 self.isi < self.burst_period,
                 self.isi > self.refr_period)]
-            if np.size(delta,0):
+            if np.size(delta, 0):
                 temp = np.sum(delta <= 0) - np.sum(delta > 0)
                 temp = temp.astype(np.float)
                 self.stats['csi'] = 100.0 * temp / np.size(delta)
@@ -396,9 +403,9 @@ class Cluster:
         try:
 #            temp = np.concatenate([spikeset.spikes[self.member, :, i] for i in
 #                range(np.size(spikeset.spikes, 2))], axis=1)
-            temp = spikeset.featureByName('Peak').data[self.member,:]
-            cvi= np.linalg.inv(np.cov(np.transpose(temp)))
-            u = temp-np.mean(temp, axis=0)
+            temp = spikeset.featureByName('Peak').data[self.member, :]
+            cvi = np.linalg.inv(np.cov(np.transpose(temp)))
+            u = temp - np.mean(temp, axis=0)
             m = np.sum(np.dot(u, cvi) * u, axis=1)
             self.mahal = m
             self.mahal_valid = True
@@ -408,10 +415,10 @@ class Cluster:
     def autotrim(self, spikeset, fname='Peak', confidence=None, canvas=None):
         chans = spikeset.featureByName(fname).data.shape[1]
         projs = []
-        for x in range(0,chans):
-            for y in range(x+1,chans):
+        for x in range(0, chans):
+            for y in range(x + 1, chans):
                 if len(self.getBoundaries(fname, x, fname, y)) == 0:
-                    projs.append((x,y))
+                    projs.append((x, y))
 
         combs = scipy.misc.comb(chans, 2)
 
@@ -419,7 +426,7 @@ class Cluster:
         plots_y = np.ceil(float(combs) / plots_x)
 
         col = np.array(self.color) / 255.0
-        data = spikeset.featureByName(fname).data[self.member,:]
+        data = spikeset.featureByName(fname).data[self.member, :]
         refr = self.refractory[self.member]
 
         N = np.sum(self.member)
@@ -437,13 +444,13 @@ class Cluster:
         for proj_x in range(0, chans):
             for proj_y in range(proj_x + 1, chans):
                 counter = counter + 1
-                ax = canvas.figure.add_subplot(plots_y, plots_x,counter)
-                ax.plot(data[:,proj_x], data[:,proj_y],
+                ax = canvas.figure.add_subplot(plots_y, plots_x, counter)
+                ax.plot(data[:, proj_x], data[:, proj_y],
                                  marker='o', markersize=ms,
                                  markerfacecolor=col, markeredgecolor=col,
                                  linestyle='None', zorder=0)
                 ax.plot(data[refr, proj_x], data[refr, proj_y],
-                                marker='o', markersize=ms+1,
+                                marker='o', markersize=ms + 1,
                                 markerfacecolor='k', markeredgecolor='k',
                                 linestyle='None', zorder=1)
                 bounds = self.getBoundaries(fname, proj_x, fname, proj_y)
@@ -464,11 +471,11 @@ class Cluster:
         maincomp = label == ind
 
         while True:
-            fitness = np.zeros((len(projs),2))
+            fitness = np.zeros((len(projs), 2))
             ellipses = []
 
             refr = self.refractory[self.member]
-            data = spikeset.featureByName(fname).data[self.member,:]
+            data = spikeset.featureByName(fname).data[self.member, :]
 
             if len(projs) == 0:
                 break
@@ -487,12 +494,12 @@ class Cluster:
                         1.0 - 0.1 / np.size(data, axis=0)])
                 # Sort them so we pick the biggest if fitness funcs are equal
                 confs = np.sort(confs)[::-1]
-                kvals = scipy.stats.chi2.ppf(confs,2) # 2d projections, 2 dof
+                kvals = scipy.stats.chi2.ppf(confs,  2)  # 2D projections-2 dof
                 # Select the data for this projection
-                pdata = data[:,[proj_x, proj_y]]
+                pdata = data[:, [proj_x, proj_y]]
                 # Estimate the ellipse for the projection using the main comp
                 center, angle, size = boundaries.robustEllipseEstimator(
-                        pdata[maincomp[self.member],:])
+                        pdata[maincomp[self.member], :])
                 # Compute fitness for different confidence intervals
                 proj_fitness = np.zeros((len(confs),))
                 for i, kval in enumerate(kvals):
@@ -508,12 +515,12 @@ class Cluster:
                         ipdb.set_trace()
                 # Choose the maximal fitness confidence interval
                 ind = np.argmax(proj_fitness)
-                fitness[iProj,0] = proj_fitness[ind]
-                fitness[iProj,1] = confs[ind]
+                fitness[iProj, 0] = proj_fitness[ind]
+                fitness[iProj, 1] = confs[ind]
                 ellipses.append((center, angle, size * np.sqrt(kvals[ind])))
 
             # Choose the best projection
-            ind = np.argmax(fitness[:,0])
+            ind = np.argmax(fitness[:, 0])
 #            print "Creating boundary on", fname, projs[ind][0], \
 #                    "vs.", fname, projs[ind][1]
             bound = boundaries.BoundaryEllipse2D((fname, fname),
@@ -535,13 +542,13 @@ class Cluster:
             ax = canvas.figure.add_subplot(plots_y, plots_x, sindex)
             ax.cla()
             tdata = spikeset.featureByName(fname).data
-            ax.plot(tdata[self.member,proj_x], tdata[self.member,proj_y],
+            ax.plot(tdata[self.member, proj_x], tdata[self.member, proj_y],
                              marker='o', markersize=ms,
                              markerfacecolor=col, markeredgecolor=col,
                              linestyle='None', zorder=0)
             ax.plot(tdata[self.refractory, proj_x],
                     tdata[self.refractory, proj_y],
-                            marker='o', markersize=ms+1,
+                            marker='o', markersize=ms + 1,
                             markerfacecolor='k', markeredgecolor='k',
                             linestyle='None', zorder=1)
 
@@ -556,17 +563,3 @@ class Cluster:
             # remove this from the list of unlimited projections
             self.calculateMembership(spikeset)
             projs.remove(projs[ind])
-
-
-if __name__ == "__main__":
-    print "Loading dotspike"
-#    ss = loadDotSpike('TT22.spike')
-    ss = loadNtt('TT2_neo.ntt')
-    ss.calculateFeatures()
-
-    bound = boundaries.BoundaryEllipse2D(('Peak', 'Peak'), (0,1), (283.9, 181.3),
-            0.914, (130.8, 44.9))
-    clust = Cluster(ss)
-    clust.addBoundary(bound)
-    clust.calculateMembership(ss)
-    clust.autotrim(ss)

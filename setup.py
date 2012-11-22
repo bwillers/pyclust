@@ -22,9 +22,9 @@ data_files.append(r'C:\Python27\Scripts\mk2iomp5md.dll')
 
 opts = {
     "py2exe": {
-        "includes":includes,
-        "excludes":excludes
-#        "dll_excludes":["MSVCP90.dll"]
+        "includes": includes,
+        "excludes": excludes
+        #        "dll_excludes":["MSVCP90.dll"]
     }
 }
 

@@ -57,7 +57,7 @@ class Feature_Valley(Feature):
         minrange = int(round(0.15 / spikeset.dt_ms)) + spikeset.peak_index
         maxrange = int(round(0.25 / spikeset.dt_ms)) + spikeset.peak_index
 
-        return np.min(spikeset.spikes[:, minrange:maxrange+1, :], axis=1)
+        return np.min(spikeset.spikes[:, minrange:maxrange + 1, :], axis=1)
 
 
 class Feature_Trough(Feature):
@@ -66,7 +66,7 @@ class Feature_Trough(Feature):
         self.valid_y_same_chan.append('Valley')
 
     def calculate(self, spikeset):
-        return np.min(spikeset.spikes[:, :spikeset.peak_index+1, :], axis=1)
+        return np.min(spikeset.spikes[:, :spikeset.peak_index + 1, :], axis=1)
 
 
 class Feature_Energy(Feature):
@@ -111,26 +111,21 @@ class Feature_Barycenter(Feature):
 
         p = p - np.min(np.max(p, axis=1))
 
-
-        x = p[:,0] - p[:,2]
-        y = p[:,1] - p[:,3]
-        angle = np.arctan2(y,x)
-        #amp = p - np.mean(p, axis=0)
-        #amp[amp < 0] = 0
-        #amp = np.sum(amp, axis=1)
-        #amp = np.sum(p, axis=1)
-        retval = np.zeros((np.size(p,0),2))
-        retval[:,0] = np.cos(angle)# * amp
-        w = retval[:,0] > 0
-        retval[w,0] = retval[w,0] * p[w,0]
+        x = p[:, 0] - p[:, 2]
+        y = p[:, 1] - p[:, 3]
+        angle = np.arctan2(y, x)
+        retval = np.zeros((np.size(p, 0), 2))
+        retval[:, 0] = np.cos(angle)
+        w = retval[:, 0] > 0
+        retval[w, 0] = retval[w, 0] * p[w, 0]
         w = np.logical_not(w)
-        retval[w,0] = retval[w,0] * p[w,2]
+        retval[w, 0] = retval[w, 0] * p[w, 2]
 
-        retval[:,1] = np.sin(angle)# * amp
-        w = retval[:,1] > 0
-        retval[w,1] = retval[w,1] * p[w,1]
+        retval[:, 1] = np.sin(angle)
+        w = retval[:, 1] > 0
+        retval[w, 1] = retval[w, 1] * p[w, 1]
         w = np.logical_not(w)
-        retval[w,1] = retval[w,1] * p[w,3]
+        retval[w, 1] = retval[w, 1] * p[w, 3]
 
         return retval
 
@@ -142,25 +137,26 @@ class Feature_FallArea(Feature):
 
     def calculate(self, spikeset):
         wv = np.mean(spikeset.spikes, axis=2)  # Average over channels
-        ret = np.sum( wv[:, spikeset.peak_index:], axis=1)
+        ret = np.sum(wv[:, spikeset.peak_index:], axis=1)
         ind = np.argmin(wv[:, spikeset.peak_index:], axis=1)
-        rnd = np.random.rand(np.size(ind,0)) - 0.5
-        retval = np.zeros((np.size(wv,0), 2))
+        rnd = np.random.rand(np.size(ind, 0)) - 0.5
+        retval = np.zeros((np.size(wv, 0), 2))
         retval[:, 0] = ret
         retval[:, 1] = (ind + rnd) * 1000.0 / spikeset.fs
         return retval
 
+
 # data is N x K
-def PCA(data, numcomponents = 3):
-    A =  numcomponents
-    N = np.size(data,0)
-    K = np.size(data,1)
+def PCA(data, numcomponents=3):
+    A = numcomponents
+    N = np.size(data, 0)
+    K = np.size(data, 1)
     nipals_T = np.zeros((N, A))
     nipals_P = np.zeros((K, A))
 
     tolerance = 1E-10
     for a in range(A):
-        t_a_guess = np.random.rand(N, 1)*2
+        t_a_guess = np.random.rand(N, 1) * 2
         t_a = t_a_guess + 1.0
         itern = 0
 
@@ -183,7 +179,7 @@ def PCA(data, numcomponents = 3):
             itern += 1
 
         #  We've converged, or reached the limit on the number of iteration
-        # Deflate the part of the data in X that we've explained with t_a and p_a
+        # Deflate the part of the data in X thats explained with t_a and p_a
         data = data - np.dot(t_a, p_a.T)
         # Store result before computing the next component
         nipals_T[:, a] = t_a.ravel()
@@ -194,7 +190,7 @@ def PCA(data, numcomponents = 3):
 
 
 class Feature_PCA(Feature):
-    def __init__(self, spikeset, coeff = None):
+    def __init__(self, spikeset, coeff=None):
         self.coeff = coeff
         Feature.__init__(self, 'PCA', spikeset)
 
@@ -207,7 +203,7 @@ class Feature_PCA(Feature):
         # demeaning really just shifts by a constant, not worth breaking
         # existing cluster files
         # inputdata = inputdata - np.mean(inputdata, axis=0)
-        if self.coeff != None:  # See if we were given projection components
+        if self.coeff is not None:  # See if we were given projectioncomponents
             scores = np.dot(inputdata, self.coeff)
         else:
             print "Calculating feature based PCA",
@@ -215,17 +211,18 @@ class Feature_PCA(Feature):
             M = 100000
             if spikeset.N > M:
                 perm = np.random.permutation(spikeset.N)
-                scores, coeff, stx = PCA(inputdata[perm[0:M],:], 6)
+                scores, coeff, stx = PCA(inputdata[perm[0:M], :], 6)
                 scores = np.dot(inputdata, coeff)
             else:
                 scores, coeff, stx = PCA(inputdata, 6)
             self.coeff = coeff
             t2 = time.clock()
-            print "took", (t2-t1), "seconds."
+            print "took", (t2 - t1), "seconds."
         return scores
 
+
 class Feature_Waveform_PCA(Feature):
-    def __init__(self, spikeset, coeff = None):
+    def __init__(self, spikeset, coeff=None):
         self.coeff = coeff
         Feature.__init__(self, 'wPCA', spikeset)
 
@@ -238,13 +235,13 @@ class Feature_Waveform_PCA(Feature):
         scores = np.zeros((spikeset.spikes.shape[0], K,
             spikeset.spikes.shape[2]))
         for chan in xrange(spikeset.spikes.shape[2]):
-            inputdata = spikeset.spikes[:,:,chan]
+            inputdata = spikeset.spikes[:, :, chan]
             #scores[:,:,chan], self.coeff[:, chan], stx = PCA(inputdata, K)
             temp1, temp2, stx = PCA(inputdata, K)
-            scores[:,:,chan] = temp1
-            self.coeff[:,:,chan] = temp2
+            scores[:, :, chan] = temp1
+            self.coeff[:, :, chan] = temp2
         t2 = time.clock()
-        print "took", (t2-t1), "seconds."
+        print "took", (t2 - t1), "seconds."
         scores = np.reshape(scores, (scores.shape[0], scores.shape[1] *
             scores.shape[2]))
         return scores

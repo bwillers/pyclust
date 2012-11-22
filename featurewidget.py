@@ -14,7 +14,8 @@ from scipy import ndimage
 from matplotlib import rcParams
 rcParams['font.size'] = 9
 
-import boundaries # Need to know how to create boundaries
+import boundaries  # Need to know how to create boundaries
+
 
 class ProjectionWidget(Canvas):
 
@@ -62,12 +63,11 @@ class ProjectionWidget(Canvas):
         self.zoom_active = False
         self.limit_mode = False
         self.limit_cluster = None
-        self.limit_type = 2 # 1 = polygon, 2 = ellipse
+        self.limit_type = 2  # 1 = polygon, 2 = ellipse
         self.limit_data = []
         self.mpl_connect('button_press_event', self.onMousePress)
         self.mpl_connect('button_release_event', self.onMouseRelease)
         self.mpl_connect('motion_notify_event', self.onMouseMove)
-
 
     @pyqtSignature("setShowUnclustered(bool)")
     def setShowUnclustered(self, show):
@@ -143,7 +143,7 @@ class ProjectionWidget(Canvas):
         #print "Updating feature plot: ", self.feature_x, self.chan_x, \
         #        " vs ", self.feature_y, self.chan_y
 
-        if self.prof_limits_reference == None:
+        if self.prof_limits_reference is None:
             w = np.array([True] * spikeset.N)
             if not junk.check.isChecked():
                 w[junk.member] = False
@@ -203,9 +203,9 @@ class ProjectionWidget(Canvas):
                 if self.exclusive:
                         for cluster in clusters + [junk]:
                                 w[cluster.member] = False
-            for cluster in \
-                [cluster for cluster, check in cl_list if check.isChecked()]:
-                    w[cluster.member] = True
+            for cluster in [cluster for cluster, check
+                             in cl_list if check.isChecked()]:
+                w[cluster.member] = True
 
             if not np.any(w):
                 w[0] = True  # Histogram routine fails with empty data
@@ -224,25 +224,14 @@ class ProjectionWidget(Canvas):
 
             count = ndimage.filters.gaussian_filter(count, 0.5)
 
-#            kernel = stats.gaussian_kde(np.vstack([xdata[w], ydata[w]]))
-#            X, Y = np.mgrid[self.prof_limits[0][0]:self.prof_limits[0][1]:100j,
-#                    self.prof_limits[1][0]:self.prof_limits[1][1]:100j]
-#            positions = np.vstack([X.ravel(), Y.ravel()])
-#            Z = np.reshape(kernel(positions).T, X.shape)
-
             if self.ptype == -3:
-#                self.axes.imshow(Z.T, cmap=mpl.cm.gist_earth_r,
-#                        aspect='auto', extent = self.prof_limits[0] +
-#                        self.prof_limits[1])
                 self.axes.imshow(count.T, cmap=mpl.cm.gist_earth_r,
-                        aspect='auto',  extent=self.axes.get_xlim() + \
+                        aspect='auto',  extent=self.axes.get_xlim() +
                         self.axes.get_ylim()[::-1])
             else:
-#                self.axes.imshow(np.log(Z+1).T, cmap=mpl.cm.gist_earth_r,
-#                        aspect='auto', extent = self.prof_limits[0] +
-#                        self.prof_limits[1])
-                 self.axes.imshow(np.log(count+1).T, cmap=mpl.cm.gist_earth_r,
-                        aspect='auto',  extent=self.axes.get_xlim() + \
+                self.axes.imshow(np.log(count + 1).T,
+                        cmap=mpl.cm.gist_earth_r,
+                        aspect='auto',  extent=self.axes.get_xlim() +
                         self.axes.get_ylim()[::-1])
 
             # Iterate over clusters for refractory spikes
@@ -316,7 +305,8 @@ class ProjectionWidget(Canvas):
     def onMousePress(self, event):
         if self.limit_mode:
             return
-        if (event.xdata != None and event.ydata != None) and event.button == 1:
+        if (event.xdata is not None and event.ydata is not None) \
+                and event.button == 1:
             if not self.prof_limits:
                 return
             if not self.zoom_active:
@@ -327,7 +317,8 @@ class ProjectionWidget(Canvas):
 
     def onMouseRelease(self, event):
         # Left mouse button
-        if event.button == 1 and (event.xdata != None and event.ydata != None):
+        if event.button == 1 and \
+                (event.xdata is not None and event.ydata is not None):
             if self.zoom_active:
                 self.finalizeZoom(event)
             if self.limit_mode and self.limit_type == 1:
@@ -343,7 +334,7 @@ class ProjectionWidget(Canvas):
 
         # complete the polygon boundary
         if event.button == 3 and self.limit_mode and self.limit_type == 1:
-            if event.xdata != None and event.ydata != None:
+            if event.xdata is not None and event.ydata is not None:
                 self.limit_data.append((event.xdata, event.ydata,
                     event.x, event.y))
                 self.limit_mode = False
@@ -361,7 +352,8 @@ class ProjectionWidget(Canvas):
 
                 # With only two points there isnt really a polyogon
                 if len(temp) > 2:
-                    self.emit(SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"), bound)
+                    self.emit(SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"),
+                              bound)
                 self.stopMouseAction()
 
         # complete the ellipse boundary
@@ -371,7 +363,7 @@ class ProjectionWidget(Canvas):
             # We need to map the ellipse from display coordinates to
             # data coordinates, do this through the matrix form of the
             # ellipse equation
-            center = tuple(0.5 * np.array(self.limit_data[0]) + \
+            center = tuple(0.5 * np.array(self.limit_data[0]) +
                     0.5 * np.array(self.limit_data[1]))
             vc = 0.5 * (t(self.limit_data[0]) + t(self.limit_data[1]))
             va = t(self.limit_data[1])
@@ -388,13 +380,13 @@ class ProjectionWidget(Canvas):
             xlim = self.axes.get_xlim()
             ylim = self.axes.get_ylim()
 
-            xlimv = [x for x,y in t([(xlim[0], ylim[0]), (xlim[1], ylim[0])])]
-            ylimv = [y for x,y in t([(xlim[0], ylim[0]), (xlim[0], ylim[1])])]
+            xlimv = [x for x, y in t([(xlim[0], ylim[0]), (xlim[1], ylim[0])])]
+            ylimv = [y for x, y in t([(xlim[0], ylim[0]), (xlim[0], ylim[1])])]
 
             scaleX = np.diff(xlim) / np.diff(xlimv)
             scaleY = np.diff(ylim) / np.diff(ylimv)
 
-            mapping = np.array([[1.0/scaleX, 0.0], [0.0, 1.0/scaleY]])
+            mapping = np.array([[1.0 / scaleX, 0.0], [0.0, 1.0 / scaleY]])
 
             cdsp = np.linalg.inv(
                     boundaries.covarianceFromEllipse(angle, ewidth, eheight))
@@ -430,7 +422,7 @@ class ProjectionWidget(Canvas):
             self.draw()
             self.repaint()
         if (not self.limit_mode) and self.zoom_active and \
-                (event.xdata != None and event.ydata != None):
+                (event.xdata is not None and event.ydata is not None):
             # draw rectangle is in the qt coordinates,
             # so we need a little conversion
             height = self.figure.bbox.height
@@ -481,35 +473,31 @@ class ProjectionWidget(Canvas):
                     self._mouse_move_event.ydata))
             center = 0.5 * (startp + mouse)
 
-            if len(self.limit_data) == 1: # we've set the center, draw line
+            if len(self.limit_data) == 1:  # we've set the center, draw line
                 eheight = 30
                 angvec = mouse - center
-#np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 angle = np.arctan2(angvec[1], angvec[0])
                 ewidth = np.linalg.norm(angvec)
 
-            elif len(self.limit_data) > 1: # we've also fixed the angle
+            elif len(self.limit_data) > 1:  # we've also fixed the angle
                 angleline = t(self.limit_data[1])
                 center = 0.5 * (startp + angleline)
                 angvec = angleline - center
-#np.array([angleline[0] - center[0],  angleline[1] - center[1]])
                 angle = np.arctan2(angvec[1], angvec[0])
                 ewidth = np.linalg.norm(angvec)
                 angvec = angvec / ewidth
 
                 mvec = mouse - center
-#np.array([mouse[0] - center[0], mouse[1] - center[1]])
                 eheight = np.linalg.norm(mvec - np.dot(mvec, angvec) * angvec)
 
             if self.limit_data:
                 qp.translate(center[0], height - center[1])
                 qp.rotate(-angle * 180.0 / np.pi)
-                qp.drawEllipse(QPoint(0,0), ewidth, eheight)
+                qp.drawEllipse(QPoint(0, 0), ewidth, eheight)
                 qp.drawLine(-ewidth, 0, ewidth, 0)
                 qp.drawLine(0, -eheight, 0, eheight)
 
         qp.end()
-
 
     # Start drawing a boundary for a cluster
     def drawBoundary(self, color):

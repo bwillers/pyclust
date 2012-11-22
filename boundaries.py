@@ -4,6 +4,7 @@ import matplotlib.nxutils as nx
 import matplotlib as mpl
 import scipy.stats
 
+
 # A simple boundary base class
 class Boundary:
 
@@ -12,6 +13,7 @@ class Boundary:
 
     def draw(self, axes, color, linestyle):
         return
+
 
 # 2D Polygon boundary
 class BoundaryPolygon2D(Boundary):
@@ -22,10 +24,10 @@ class BoundaryPolygon2D(Boundary):
         self.features = featureNames
         self.chans = featureChans
         self.bounds = bounds
-        self.special_info = None # might need things like PCA coefficients
+        self.special_info = None  # might need things like PCA coefficients
 
     def withinBoundary(self, spikeset, subset=None):
-        if subset == None:
+        if subset is None:
             subset = np.array([True] * spikeset.N)
         px = spikeset.featureByName(self.features[0]).data[subset,
                 self.chans[0]]
@@ -43,6 +45,7 @@ class BoundaryPolygon2D(Boundary):
                 bound[i:i + 2, 1], color=color, linestyle=linestyle)
             axes.add_line(line)
 
+
 def robustEllipseEstimator(data):
     # data is N x 2
     center = np.median(data, axis=0)
@@ -57,25 +60,27 @@ def robustEllipseEstimator(data):
         [np.sin(angle), np.cos(angle)]])
 
     temp = np.dot(cdata, rotmat)
-    rx = np.median(np.abs(temp[:,0]))
-    ry = np.median(np.abs(temp[:,1]))
+    rx = np.median(np.abs(temp[:, 0]))
+    ry = np.median(np.abs(temp[:, 1]))
     return (center, angle, np.array([rx, ry]))
+
 
 # Helper functions
 def ellipseFromCovariance(covar, conf=None):
-    if conf == None:
+    if conf is None:
         kval = 1
     else:
         kval = scipy.stats.chi2.ppf(conf, covar.shape[0] - 1)
     vals, vecs = np.linalg.eigh(covar)
     ind = np.argsort(vals)[::-1]  # descending sort
     vals = vals[ind]
-    vecs = vecs[ind,:]
+    vecs = vecs[ind, :]
     projv = vecs[0] / np.linalg.norm(vecs[0])
     angle = np.arctan2(projv[1], projv[0])
     radiusx = np.sqrt(vals[0] * kval)
     radiusy = np.sqrt(vals[1] * kval)
     return (angle, radiusx, radiusy)
+
 
 def covarianceFromEllipse(angle, radiusx, radiusy):
     # eigen vectors as columns
@@ -84,9 +89,10 @@ def covarianceFromEllipse(angle, radiusx, radiusy):
     d = np.array([[radiusx ** 2, 0], [0, radiusy ** 2]])
     return np.dot(np.dot(u, d), np.linalg.inv(u))
 
+
 def pointsInsideEllipse(data, center, angle, size):
     data = data - center
-    rotmat = np.array([[ np.cos(angle), np.sin(angle)],
+    rotmat = np.array([[np.cos(angle), np.sin(angle)],
             [-np.sin(angle), np.cos(angle)]])
 #    import ipdb; ipdb.set_trace()
 #    data = np.dot(data.T, rotmat)
@@ -95,6 +101,7 @@ def pointsInsideEllipse(data, center, angle, size):
 
     data = data / size
     return np.sum(np.power(data, 2), axis=1) <= 1
+
 
 # 2D Elliptical boundary
 class BoundaryEllipse2D(Boundary):
@@ -109,14 +116,14 @@ class BoundaryEllipse2D(Boundary):
         self.special_info = None
 
     def withinBoundary(self, spikeset, subset=None):
-        if subset == None:
+        if subset is None:
             subset = np.array([True] * spikeset.N)
         px = spikeset.featureByName(self.features[0]).data[subset,
                 self.chans[0]]
         py = spikeset.featureByName(self.features[1]).data[subset,
                 self.chans[1]]
 
-        data = np.column_stack((px, py))# - self.center
+        data = np.column_stack((px, py))
 
         return pointsInsideEllipse(data, self.center, self.angle, self.size)
 
@@ -134,15 +141,3 @@ class BoundaryEllipse2D(Boundary):
                 self.size[1] * 2.0, 180 * self.angle / np.pi, color=color,
                 linestyle=linestyle,  fill=False, linewidth=2)
         axes.add_artist(ell)
-
-if __name__ == '__main__':
-    a = np.pi/5
-    rx = 3.0
-    ry = 1.0
-    print a * 180 / np.pi, rx, ry
-    cov = covarianceFromEllipse(a, rx, ry)
-    print cov
-    angle, rx, ry = ellipseFromCovariance(cov)
-    print angle * 180 / np.pi, rx, ry
-    print np.mod(np.abs(angle - a), 2 * np.pi) * 180 / np.pi
-

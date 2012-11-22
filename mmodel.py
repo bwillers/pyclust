@@ -26,6 +26,7 @@ class GMMMembershipModel(MembershipModel):
             retval = retval | (labels == cid)
         return retval
 
+
 class PrecalculatedLabelsMembershipModel(MembershipModel):
     def __init__(self, labels, model_id):
         self.labels = labels
@@ -54,7 +55,7 @@ def fitGMMMembershipModel(spikes, gui_object):
     print "Fitting GMMs"
     print 'Best model so far:',
     while True:
-        N = N+1
+        N = N + 1
         gmms = mixture.GMM(n_components=N, covariance_type='full')
         gmms.fit(inputdata)
         temp = gmms.bic(inputdata)
@@ -63,10 +64,10 @@ def fitGMMMembershipModel(spikes, gui_object):
             Nbest = N
             gmm = gmms
             print N,
-        else: # if bic has been increasing for 3 models then weve probably
-              # passed the minimum
-            print '('+str(N)+')',
-            if Nbest < N-3:
+        else:  # if bic has been increasing for 3 models then weve probably
+               # passed the minimum
+            print '(' + str(N) + ')',
+            if Nbest < N - 3:
                 print ''
                 break
         sys.stdout.flush()
@@ -76,11 +77,11 @@ def fitGMMMembershipModel(spikes, gui_object):
 #    for n in xrange(num_comps.size):
 #        print num_comps[n],
 #        sys.stdout.flush()
-#        gmms[n] = mixture.GMM(n_components=num_comps[n], covariance_type='full')
+#     gmms[n] = mixture.GMM(n_components=num_comps[n], covariance_type='full')
 #        gmms[n].fit(inputdata)
 #        bic[n] = gmms[n].bic(inputdata)
     t2 = time.clock()
-    print "Took", (t2-t1), "seconds."
+    print "Took", (t2 - t1), "seconds."
 
     # Pick the model with best BIC
 #    idx = np.argmin(bic)
@@ -97,36 +98,38 @@ def fitGMMMembershipModel(spikes, gui_object):
     labels = gmm.predict(inputdata)
 
     # generate pairwise mahal distances
-    dist = np.zeros((N,N))
+    dist = np.zeros((N, N))
     for i in xrange(N):
         for j in xrange(N):
-            if i == j: continue
+            if i == j:
+                continue
 
-            gen_set = p[labels==i,:]
+            gen_set = p[labels == i, :]
             cv = np.cov(gen_set.T)
             mu = np.mean(gen_set, axis=0)
 
-            test_set = p[labels==j,:]
+            test_set = p[labels == j, :]
 
             x = test_set - mu
-            temp = np.linalg.solve(cv.T, x.T) # equivalent to temp = x * inv(C)
+            temp = np.linalg.solve(cv.T, x.T)  # equiv to temp = x * inv(C)
             mhl = np.sum(x.T * temp, axis=0)
-            dist[i,j] = np.mean(mhl)
+            dist[i, j] = np.mean(mhl)
     dist = 0.5 * (dist + dist.T)
     dist = stats.chi2.cdf(dist, p.shape[1])
 
     # now merge labels, this code works, but its yucky, should do it better
     threshold = 0.95
-    cluster_labels = [[i,] for i in range(N)]
+    cluster_labels = [[i, ] for i in range(N)]
     for i in xrange(N):
-        for j in xrange(i+1,N):
-            if np.isnan(dist[i,j]): continue
+        for j in xrange(i + 1, N):
+            if np.isnan(dist[i, j]):
+                continue
 
-            if dist[i,j] < threshold:
-                print 'Merging components', (i,j)
-                dist[j,:] = np.nan
-                dist[:,j] = np.nan
-                cluster_labels.remove([j,])
+            if dist[i, j] < threshold:
+                print 'Merging components', (i, j)
+                dist[j, :] = np.nan
+                dist[:, j] = np.nan
+                cluster_labels.remove([j, ])
                 for cluster in cluster_labels:
                     if i in cluster:
                         cluster.append(j)
@@ -147,7 +150,3 @@ def fitGMMMembershipModel(spikes, gui_object):
     if update:
         gui_object.update_active_cluster()
     gui_object.updateFeaturePlot()
-
-
-
-
