@@ -5,148 +5,21 @@ Created on Fri Mar 30 04:18:30 2012
 @author: Bernard
 """
 import random
-import struct
-#import time
-import os
+
 import pickle
 import hashlib
 
-#import scipy.special as spspec
 import scipy.stats
 import numpy as np
-#import pylab
 import sklearn.mixture
-#import matplotlib as mpl
+
 from PyQt4 import QtGui
 
 import features
 import boundaries
 
 # pickle needs this to load the saved bounds
-from boundaries import BoundaryPolygon2D
-
-
-def loadNtt(filename):
-    f = open(filename, 'rb')
-    header = f.read(2 ** 14)
-
-    # A tetrode spike record is as folows:
-    # uint64 - timestamp                    bytes 0:8
-    # uint32 - acquisition entity number    bytes 8:12
-    # uint32 - classified cel number        bytes 12:16
-    # 8 * uint32- params                    bytes 16:48
-    # 32 * 4 * int16 - waveform points
-    # hence total record size is 2432 bits, 304 bytes
-
-    # header is supposed to be 16kbyte, i.e. 16 * 2^10 = 2^14
-
-    # Read the header and find the conversion factors / sampling frequency
-    a2d_conversion = [1, 1, 1, 1]
-    fs = 32556.0
-    for line in header.split('\n'):
-        if line.strip().startswith('-SamplingFrequency'):
-            fs = float(line.strip().split(' ')[1].strip())
-        if line.strip().startswith('-ADBitVolts'):
-            a2d_conversion = 1e6 * np.array(map(float, line.split()[1:5]))
-            break
-    f.seek(2 ** 14)    # start of the spike, records
-    # Neuralynx write little endian for some dumb reason
-    dt = np.dtype([('time', '<Q'), ('filer', '<i', 10),
-        ('spikes', np.dtype('<h'), (32, 4))])
-    temp = np.fromfile(f, dt)
-
-    return Spikeset(temp['spikes'] * np.reshape(a2d_conversion, [1, 1, 4]),
-            temp['time'], 8, fs)
-
-
-def readStringFromBinary(f):
-    strlen, = struct.unpack('<I', f.read(4))
-    if strlen:
-        return f.read(strlen)
-    else:
-        return ''
-
-
-def loadDotSpike(filename):
-    f = open(filename, 'rb')
-    # Everything is little endian
-    # A .spike record is as folows:
-    # Header:
-    # uint16 - version no
-    # uint64 - num spikes
-    # uint16 - num channels
-    # uint16 - num samples per waveform
-    # uint32 - sampling frequency
-    # uint16 - peak align point
-    # 4 * float64 - a2d conversion factor
-    # uint32 + n x char - date time string
-    # uint32 + n x char - subject string
-    # uint32 + n x char - filter description
-
-    version_no, = struct.unpack('<H', f.read(2))
-    if version_no != 1:
-        f.close()
-        return
-
-    print ''
-    print 'Loading', filename
-    print 'Format version #', version_no
-    num_spikes, = struct.unpack('<Q', f.read(8))
-    print 'Num spikes', num_spikes
-    num_chans, = struct.unpack('<H', f.read(2))
-    print 'Num channels', num_chans
-    num_samps, = struct.unpack('<H', f.read(2))
-    print 'Num samples', num_samps
-    fs, = struct.unpack('<I', f.read(4))
-    print 'Sampling frequency', fs
-    peak_align, = struct.unpack('<H', f.read(2))
-    print 'Peak alignment point', peak_align
-    uvolt_conversion = np.array(struct.unpack('<dddd', f.read(8 * 4)))
-    print 'Microvolt conversion factor', uvolt_conversion
-    subjectstr = readStringFromBinary(f)
-    print 'Subject string', subjectstr
-    datestr = readStringFromBinary(f)
-    print 'Date string', datestr
-    filterstr = readStringFromBinary(f)
-    print 'Filter string', filterstr
-
-    # Records:
-    # uint64 - timestamp                    bytes 0:8
-    # numsample x numchannel x int16 - waveform points
-
-    dt = np.dtype([('time', '<Q'),
-        ('spikes', np.dtype('<h'), (num_samps, num_chans))])
-    temp = np.fromfile(f, dt)
-
-    f.close()
-
-    return Spikeset(temp['spikes'] * np.reshape(uvolt_conversion, [1, 1, 4]),
-            temp['time'], peak_align, fs, subject=subjectstr, session=datestr)
-
-
-def load(filename):
-    # Load the file
-    if filename.endswith('.ntt'):
-        ss = loadNtt(filename)
-        #featureFile = filename.replace('.ntt', '.features')
-        featureFile = filename + '.feat'
-    elif filename.endswith('.spike'):
-        ss = loadDotSpike(filename)
-        #featureFile = filename.replace('.spike', '.features')
-        featureFile = filename + '.feat'
-    else:
-        return None
-
-    # check if feature file exists
-    if os.path.exists(featureFile):
-        # load it up
-        ss.loadFeatures(featureFile)
-    else:
-        # calculate features, and save them
-        ss.calculateFeatures()
-        ss.saveFeatures(featureFile)
-
-    return ss
+#from boundaries import BoundaryPolygon2D
 
 # rough breakdown as follows
 # spikeset contains spikes, timestamps for the whole ntt file
@@ -179,7 +52,6 @@ class Spikeset:
         hashkey = hashlib.sha1(b).hexdigest()
         print hashkey, "to file", filename, "."
         pickle.dump(hashkey, f)
-        #pickle.dump(self.features, f)
         pickle.dump(self.feature_special, f)
 
     def loadFeatures(self, filename):
@@ -190,7 +62,6 @@ class Spikeset:
 
         if loadhash == hashkey:
             print "Spikeset hashes match, loading features info."
-            #self.features = pickle.load(f)
             self.calculateFeatures(pickle.load(f))
             self.features.append(features.Feature_Barycenter(self))
         else:
@@ -374,11 +245,13 @@ class Cluster:
                 self.stats['isolation'] = np.NAN
             else:
                 try:
-                    cvi = np.linalg.inv(np.cov(np.transpose(p[self.member, :])))
+                    cvi = np.linalg.inv(np.cov(np.transpose(
+                        p[self.member, :])))
                     u = p - np.mean(p[self.member, :], axis=0)
                     m = np.sum(np.dot(u, cvi) * u, axis=1)
                     m = np.sort(m)
-                    self.stats['isolation'] = m[self.stats['num_spikes'] * 2 - 1]
+                    self.stats['isolation'] = m[
+                        self.stats['num_spikes'] * 2 - 1]
                 except Exception:
                     self.stats['isolation'] = np.NAN
 
@@ -507,7 +380,8 @@ class Cluster:
                     height = np.sqrt(kval) * size[1]
                     ww = np.logical_not(boundaries.pointsInsideEllipse(pdata,
                         center, angle, (width, height)))
-                    proj_fitness[i] = np.sum(refr[ww]).astype(float) / np.sum(ww)
+                    proj_fitness[i] = np.sum(refr[ww]).astype(float) \
+                        / np.sum(ww)
                     if np.isinf(width) or np.isinf(height):
                         import PyQt4.QtCore
                         PyQt4.QtCore.pyqtRemoveInputHook()

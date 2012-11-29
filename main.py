@@ -26,6 +26,7 @@ from gui import Ui_MainWindow
 from gui_sessiontracker import Ui_SessionTrackerDialog
 
 import spikeset
+import spikeset_io
 import featurewidget
 import unique_colors
 import mmodel
@@ -319,7 +320,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         infile.close()
 
         print "Loading comparison clusters"
-        ss_comp = spikeset.load(str(fname))
+        ss_comp = spikeset_io.loadSpikeset(str(fname))
         ss_comp.calculateFeatures(special)
 
         clusters_comp = []
@@ -1093,7 +1094,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         print 'Loading file', fname
         t1 = time.clock()
-        self.spikeset = spikeset.load(fname)
+        self.spikeset = spikeset_io.loadSpikeset(fname)
         t2 = time.clock()
         print 'Loaded', self.spikeset.N, 'spikes in ', (t2 - t1), 'seconds'
 
@@ -1190,8 +1191,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
             # uint64 - num spikes
             # uint16 x N - spike cluster IDs
             f = open(kkwikfilename, 'rb')
-            subjectstr = spikeset.readStringFromBinary(f)
-            datestr = spikeset.readStringFromBinary(f)
+            subjectstr = spikeset_io.readStringFromBinary(f)
+            datestr = spikeset_io.readStringFromBinary(f)
             num_samps, = struct.unpack('<Q', f.read(8))
 
             if num_samps != self.spikeset.N:
@@ -1385,7 +1386,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         outfilename = self.current_filename + os.extsep + 'bounds'
 
         outfile = open(outfilename, 'wb')
-
         versionstr = "0.0.1"
         if versionstr == "0.0.1":
             dumping = dict()
@@ -1413,8 +1413,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 for cluster in self.clusters]
 
             pickle.dump(save_bounds, outfile)
-            outfile.close()
             print "Saved bounds to", outfilename
+        outfile.close()
+        print "Saved cluster membership to", outfilename
 
         # Save the cluster membership vectors in matlab format
         #outfilename = root + os.extsep + 'mat'
@@ -1428,18 +1429,25 @@ class PyClustMainWindow(QtGui.QMainWindow):
             'spike_time': self.spikeset.time,
             'subject': self.spikeset.subject,
             'session': self.spikeset.session}
-        if self.matches is not None:
-            save_data['match_subject'] = self.matches[0][1]
-            save_data['match_session'] = self.matches[1][1]
-            save_data['matches'] = self.matches[2]
+#        if self.matches is not None:
+#            save_data['match_subject'] = self.matches[0][1]
+#            save_data['match_session'] = self.matches[1][1]
+#            save_data['matches'] = self.matches[2]
 
         for key in cluster_stats[0].keys():
             save_data[key] = [stat[key] for stat in cluster_stats]
 
         sio.savemat(outfilename, save_data, oned_as='column', appendmat=False)
-        outfile.close()
+        print("Saved summary data (Matlab) to" + outfilename)
 
-        print "Saved cluster membership to", outfilename
+        # now that we've saved in .mat for matlab users, do a
+        # pickle dump for python people. TODO: hdf support in future?
+        outfilename = self.current_filename + os.extsep + 'pkl'
+        outfile = open(outfilename, 'wb')
+        pickle.dump(save_data, outfile)
+        outfile.close()
+        print("Saved summary data (Python) to" + outfilename)
+
         self.unsaved = False
 
     @QtCore.pyqtSlot('bool')
