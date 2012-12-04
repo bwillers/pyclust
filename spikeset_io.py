@@ -8,14 +8,14 @@ import numpy as np
 # - loading .spike to spikeset
 # - importing bounds to give a non-gui useful spikeset with cluster membership
 
-from spikeset import Spikeset
-
+#from spikeset import Spikeset
+import spikeset
 import nlxio
 
 
 def spikesetFromNtt(filename):
     ts, sp, fs = nlxio.loadNtt(filename)
-    return Spikeset(sp, ts, 8, fs)
+    return spikeset.Spikeset(sp, ts, 8, fs)
 
 
 def readStringFromBinary(f):
@@ -80,8 +80,10 @@ def spikesetFromDotSpike(filename):
 
     f.close()
 
-    return Spikeset(temp['spikes'] * np.reshape(uvolt_conversion, [1, 1, 4]),
-            temp['time'], peak_align, fs, subject=subjectstr, session=datestr)
+    return spikeset.Spikeset(temp['spikes'] *
+                             np.reshape(uvolt_conversion, [1, 1, 4]),
+                             temp['time'], peak_align, fs, subject=subjectstr,
+                             session=datestr)
 
 
 def loadSpikeset(filename):

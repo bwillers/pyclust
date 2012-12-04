@@ -20,7 +20,6 @@ import pickle
 import os
 import sys
 import time
-import struct
 
 from gui import Ui_MainWindow
 from gui_sessiontracker import Ui_SessionTrackerDialog
@@ -28,8 +27,6 @@ from gui_sessiontracker import Ui_SessionTrackerDialog
 import spikeset
 import spikeset_io
 import featurewidget
-import unique_colors
-import mmodel
 import boundaries
 
 
@@ -287,12 +284,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
     def autotrim_cancel(self):
         clust = self.activeClusterRadioButton().cluster_reference
         clust.bounds = self.trim_cluster.bounds
-#        for bound in self.trim_cluster.bounds:
-#            clust.addBoundary(bound)
+        #for bound in self.trim_cluster.bounds:
+        #clust.addBoundary(bound)
         clust.calculateMembership(self.spikeset)
-
         self.trim_cluster = None
-
         self.updateFeaturePlot()
         self.updateClusterDetailPlots()
         self.ui.stackedWidget.setCurrentIndex(0)
@@ -334,8 +329,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
             clust.calculateMembership(ss_comp)
             clusters_comp.append(clust)
 
-        dialog = PyClustSessionTrackerDialog(self.spikeset, self.clusters,
-               ss_comp, clusters_comp)
+        dialog = PyClustSessionTrackerDialog(self.spikeset,
+                    self.spikeset.clusters, ss_comp, clusters_comp)
         dialog.showMaximized()
         if dialog.exec_():
             matches = dialog.getMatches()
@@ -346,22 +341,17 @@ class PyClustMainWindow(QtGui.QMainWindow):
     def __init__(self, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
 
-        self.redrawing_proj = True
-
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
         # There is no spikeset or feature set on load
         self.spikeset = None
         self.current_feature = None
-        self.clusters = []
         self.matches = None
         self.current_filename = None
         self.junk_cluster = None
 
         self.limit_mode = False
-        self.redrawing_proj = False
-        self.redrawing_details = False
         self.unsaved = False
 
         # Create action groups for the mnu items
@@ -564,8 +554,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.activeClusterRadioButton = self.buttonGroup_cluster.checkedButton
 
-        self.redrawing_proj = False
-
         # Set up waveform plot plot axes
         self.mp_wave.figure.clear()
         self.mp_wave.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
@@ -679,21 +667,18 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.cluster_ui_buttons = []
 
     def hide_show_all_clusters(self, hidden):
-        self.redrawing_proj = True
         radio = self.activeClusterRadioButton()
-        for cluster, ui in zip(self.clusters, self.cluster_ui_buttons):
+        for cluster, ui in zip(self.spikeset.clusters,
+                               self.cluster_ui_buttons):
             if ui[0] == radio:
                 continue
-#            if radio != self.radioButton_junk and \
-#                cluster == self.activeClusterRadioButton().cluster_reference:
-#                continue
+
             ui[3].setChecked(not hidden)
-#            cluster.check.setChecked(not hidden)
             if hidden:
                 # dont show this on show all
                 self.checkBox_junk.setChecked(False)
+
         self.ui.checkBox_show_unclustered.setChecked(not hidden)
-        self.redrawing_proj = False
         self.updateFeaturePlot()
 
     # When we switch clusters, correctly enabled/disable cluster
@@ -712,75 +697,68 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_proj.stopMouseAction()
 
     # Add a new cluster by generating a color, creating GUI elements, etc.
-    def add_cluster(self, color=None):
-        new_cluster = spikeset.Cluster(self.spikeset)
-        # If we're provided with a cluster color, use it
-        if color:
-            new_cluster.color = color
-        # Otherwise try to intelligently generate one using the existing
-        # color list
-        else:
-            color_list = [map(lambda x: x / 255.0, cluster.color) for
-                    cluster in self.clusters]
 
-            # If this is the first color, we can pick whatever we want
-            if color_list == []:
-                new_cluster.color = (50, 170, 170)
-            else:
-                c = unique_colors.newcolor(color_list)
-                new_cluster.color = tuple(map(lambda x: int(x * 255), c))
+    def update_ui_cluster_buttons(self):
+        # remove all the UI buttons for clusters
+        for ui_container in self.cluster_ui_buttons:
+            radio = ui_container[0]
+            layout = ui_container[1]
+            cbut = ui_container[2]
 
+            self.buttonGroup_cluster.removeButton(radio)
+            self.labels_container.layout().removeItem(layout)
+            for i in range(layout.count()):
+                if layout.itemAt(i).widget():
+                    layout.itemAt(i).widget().close()
+                    layout.itemAt(i).widget().deleteLater()
+
+            radio.cluster_reference = None
+            cbut.cluster_reference = None
+        self.cluster_ui_buttons = []
+
+        # Now add buttons for each cluster
         layout = self.labels_container.layout()
+        for i, new_cluster in enumerate(self.spikeset.clusters):
+            hlayout = QtGui.QHBoxLayout()
 
-        hlayout = QtGui.QHBoxLayout()
+            check = QtGui.QCheckBox()
+            check.setChecked(True)
+            QtCore.QObject.connect(check, QtCore.SIGNAL("stateChanged(int)"),
+                self.updateFeaturePlot)
 
-        check = QtGui.QCheckBox()
-        check.setChecked(True)
-        QtCore.QObject.connect(check, QtCore.SIGNAL("stateChanged(int)"),
-            self.updateFeaturePlot)
+            radio = QtGui.QRadioButton()
+            radio.setChecked(True)
+            spacer = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+                QtGui.QSizePolicy.Minimum)
 
-        radio = QtGui.QRadioButton()
-        radio.setChecked(True)
-        spacer = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum)
+            hlayout.addWidget(check)
+            hlayout.addItem(spacer)
+            hlayout.addWidget(radio)
+            hlayout.setSizeConstraint(QtGui.QLayout.SetMaximumSize)
+            self.buttonGroup_cluster.addButton(radio)
 
-        hlayout.addWidget(check)
-        hlayout.addItem(spacer)
-        hlayout.addWidget(radio)
-        hlayout.setSizeConstraint(QtGui.QLayout.SetMaximumSize)
-        self.buttonGroup_cluster.addButton(radio)
+            cbut = QtGui.QPushButton()
+            cbut.setMaximumSize(20, 20)
+            cbut.setText(str(i+1))
+            cbut.setStyleSheet(
+                    "QPushButton {background-color: rgb(%d, %d, %d);"
+                    % new_cluster.color + " font: bold;" +
+                    " color: rgb(255, 255, 255);}")
+            QtCore.QObject.connect(cbut, QtCore.SIGNAL("clicked()"),
+                self.button_cluster_color)
 
-        cbut = QtGui.QPushButton()
-        cbut.setMaximumSize(20, 20)
-        cbut.setText('')
-        cbut.setStyleSheet("QPushButton {background-color: rgb(%d, %d, %d)}"
-            % new_cluster.color)
-        QtCore.QObject.connect(cbut, QtCore.SIGNAL("clicked()"),
-            self.button_cluster_color)
+            hlayout.addItem(QtGui.QSpacerItem(40, 20,
+                    QtGui.QSizePolicy.Expanding,
+                    QtGui.QSizePolicy.Minimum))
+            hlayout.addWidget(cbut)
+            layout.insertLayout(layout.count() - 1, hlayout)
 
-        hlayout.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum))
+            # add the gui elements to the cluster reference
+            # so we can access them when we need to
+            cbut.cluster_reference = new_cluster
+            radio.cluster_reference = new_cluster
 
-        hlayout.addWidget(cbut)
-        layout.insertLayout(layout.count() - 1, hlayout)
-
-        # add the gui elements to the cluster reference
-        # so we can access them when we need to
-        cbut.cluster_reference = new_cluster
-        radio.cluster_reference = new_cluster
-
-#        new_cluster.radio = radio
-#        new_cluster.layout = hlayout
-#        new_cluster.cbut = cbut
-#        new_cluster.check = check
-
-        self.cluster_ui_buttons.append((radio, hlayout, cbut, check))
-        self.clusters.append(new_cluster)
-        self.update_active_cluster()
-
-        self.unsaved = True
-
-        return new_cluster
+            self.cluster_ui_buttons.append((radio, hlayout, cbut, check))
 
     @QtCore.pyqtSlot('bool')
     def on_actionDelete_Cluster_triggered(self, checked=None):
@@ -806,30 +784,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 print "Clearing cluster matches"
                 self.matches = None
 
-        for ui_container in self.cluster_ui_buttons:
-            if ui_container[0].cluster_reference == cluster:
-                radio = ui_container[0]
-                layout = ui_container[1]
-                cbut = ui_container[2]
-
-                self.buttonGroup_cluster.removeButton(radio)
-                self.labels_container.layout().removeItem(layout)
-                for i in range(layout.count()):
-                    if layout.itemAt(i).widget():
-                        layout.itemAt(i).widget().close()
-                        layout.itemAt(i).widget().deleteLater()
-
-                radio.cluster_reference = None
-                cbut.cluster_reference = None
-
-                self.cluster_ui_buttons.remove(ui_container)
-                break
-
-        self.clusters.remove(cluster)
-
+        self.spikeset.clusters.remove(cluster)
+        self.update_ui_cluster_buttons()
         self.updateFeaturePlot()
         self.updateClusterDetailPlots()
-
         self.unsaved = True
 
     # Tell the projection widget to start drawing a boundary
@@ -899,16 +857,80 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot('bool')
     def on_actionAdd_Cluster_triggered(self, checked=None):
-        self.add_cluster()
+        self.spikeset.addCluster()
+        self.update_ui_cluster_buttons()
+        self.update_active_cluster()
+        self.unsaved = True
 
-    def feature_channel_x_changed(self, index):
+    def feature_x_changed(self, index):
         if index == -1:
             return
-        if self.setting_up_combos:
+
+        # Set up blocks to things that get changed
+        self.mp_proj.blockSignals(True)
+        self.ui.comboBox_feature_y.blockSignals(True)
+        self.ui.comboBox_feature_y_chan.blockSignals(True)
+        self.ui.comboBox_feature_x_chan.blockSignals(True)
+
+        # Set the options in the y feature box accordingly
+        current_x = str(self.ui.comboBox_feature_x.currentText())
+
+        # Possible y features
+        # is always going to be 0 first
+        valid_y = self.spikeset.featureByName(current_x).valid_y_features(0)
+        self.ui.comboBox_feature_y.clear()
+        for (name, chans) in valid_y:
+            self.ui.comboBox_feature_y.addItem(name)
+        current_y = str(self.ui.comboBox_feature_y.currentText())
+
+        # Possible x channels
+        valid_x = self.spikeset.featureByName(current_x).valid_x_features()
+        # if we have the same feature on x and y, dont allow max chan on x
+        if current_x == current_y:
+            valid_x = valid_x[:-1]
+
+        self.ui.comboBox_feature_x_chan.clear()
+        for i in valid_x:
+            self.ui.comboBox_feature_x_chan.addItem(str(i + 1))
+
+        # Possible y channels
+        valid_y_chans = valid_y[0][1]
+        # y_chans is None if it should be all channels for a different feature
+        # type, since we have no way of knowing how many there will be apriori,
+        #we pass none
+        if valid_y_chans is None:
+            valid_y_chans = range(0,
+                self.spikeset.featureByName(valid_y[0][0]).channels)
+
+        self.ui.comboBox_feature_y_chan.clear()
+        for i in valid_y_chans:
+            self.ui.comboBox_feature_y_chan.addItem(str(i + 1))
+
+        # Update the feature widget
+        self.mp_proj.setFeatureX(current_x)
+        self.mp_proj.setChanX(int(
+                self.ui.comboBox_feature_x_chan.currentText()) - 1)
+        self.mp_proj.setFeatureY(
+                self.ui.comboBox_feature_y.currentText())
+        self.mp_proj.setChanY(int(
+                self.ui.comboBox_feature_y_chan.currentText()) - 1)
+
+        # Remove the blocks
+        self.mp_proj.blockSignals(False)
+        self.ui.comboBox_feature_y.blockSignals(False)
+        self.ui.comboBox_feature_y_chan.blockSignals(False)
+        self.ui.comboBox_feature_x_chan.blockSignals(False)
+        # And redraw the widget
+        self.updateFeaturePlot()
+
+    def feature_channel_x_changed(self, index, setYtoLast=False):
+        """Event fires only when X channel directly changes."""
+        if index == -1:
             return
 
-        had_proj = self.redrawing_proj
-        self.redrawing_proj = True
+        # Set up blocks to things that get changed
+        self.mp_proj.blockSignals(True)
+        self.ui.comboBox_feature_y_chan.blockSignals(True)
 
         # Get the valid y channel options based on px, cx, py
         current_x = str(self.ui.comboBox_feature_x.currentText())
@@ -916,16 +938,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         valid_y = self.spikeset.featureByName(current_x).valid_y_features(
             int(self.ui.comboBox_feature_x_chan.currentText()) - 1)
-
         valid_y_chans = [chans for (name, chans) in valid_y
             if name == current_y][0]
 
-        # Set the valid projections for y
-        current = self.ui.comboBox_feature_y_chan.currentText()
-        if current == '':
-            current = 0
+        if setYtoLast:
+            current = len(valid_y_chans) - 1
         else:
-            current = int(current)
+            current = 0
+        print current
 
         # y_chans is None if it should be all channels for a different
         # feature type, since we have no way of knowing how many there
@@ -937,49 +957,28 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.comboBox_feature_y_chan.clear()
         for i in valid_y_chans:
             self.ui.comboBox_feature_y_chan.addItem(str(i + 1))
-
-        if not had_proj:
-            self.redrawing_proj = False
+        self.ui.comboBox_feature_y_chan.setCurrentIndex(current)
 
         self.mp_proj.setChanX(int(
                 self.ui.comboBox_feature_x_chan.currentText()) - 1)
+        self.mp_proj.setChanY(int(
+                self.ui.comboBox_feature_y_chan.currentText()) - 1)
 
-    def feature_x_changed(self, index):
-        if index == -1:
-            return
-
-        self.redrawing_proj = True
-        self.setting_up_combos = True
-
-        # Set the options in the y feature box accordingly
-        current_x = str(self.ui.comboBox_feature_x.currentText())
-        valid_x = self.spikeset.featureByName(current_x).valid_x_features()
-
-        # Possible x channels
-        self.ui.comboBox_feature_x_chan.clear()
-        for i in valid_x:
-            self.ui.comboBox_feature_x_chan.addItem(str(i + 1))
-
-        # Possible y features
-        # is always going to be 0 first
-        valid_y = self.spikeset.featureByName(current_x).valid_y_features(0)
-        self.ui.comboBox_feature_y.clear()
-        for (name, chans) in valid_y:
-            self.ui.comboBox_feature_y.addItem(name)
-
-        # Update the feature widget
-        self.mp_proj.setFeatureX(current_x)
-
-        self.mp_proj.setChanX(int(
-                self.ui.comboBox_feature_x_chan.currentText()) - 1)
-
-        self.setting_up_combos = False
-        self.redrawing_proj = False
-        self.feature_y_changed(0)
+        # Remove the blocks
+        self.mp_proj.blockSignals(False)
+        self.ui.comboBox_feature_y_chan.blockSignals(False)
+        # and redraw feature widget
+        self.updateFeaturePlot()
 
     def feature_y_changed(self, index):
+        """Event fires when the Y feature directly changes."""
         if index == -1:
             return
+
+        # Blocks for things that change
+        self.mp_proj.blockSignals(True)
+        self.ui.comboBox_feature_y_chan.blockSignals(True)
+        self.ui.comboBox_feature_x_chan.blockSignals(True)
 
         # Set the options in the y channel box accordingly
         current_x = str(self.ui.comboBox_feature_x.currentText())
@@ -988,6 +987,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # If x and y features are the same, remove the maximal channel number
         chans = self.spikeset.featureByName(current_x).channels
         index = self.ui.comboBox_feature_x_chan.findText(str(chans))
+
         if current_x == current_y and index >= 0:
             if self.ui.comboBox_feature_x_chan.currentText() == str(chans):
                 self.ui.comboBox_feature_x_chan.setCurrentIndex(chans - 2)
@@ -998,7 +998,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         valid_y = self.spikeset.featureByName(current_x).valid_y_features(
             int(self.ui.comboBox_feature_x_chan.currentText()) - 1)
-
         valid_y_chans = [chans for (name, chans) in valid_y
             if name == current_y][0]
         # y_chans is None if it should be all channels for a different feature
@@ -1013,50 +1012,65 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.comboBox_feature_y_chan.addItem(str(i + 1))
 
         self.mp_proj.setFeatureY(current_y)
+        self.mp_proj.setChanX(int(
+                self.ui.comboBox_feature_x_chan.currentText()) - 1)
+        self.mp_proj.setChanY(int(
+                self.ui.comboBox_feature_y_chan.currentText()) - 1)
+
+        # Remove the blocks
+        self.mp_proj.blockSignals(False)
+        self.ui.comboBox_feature_y_chan.blockSignals(False)
+        self.ui.comboBox_feature_x_chan.blockSignals(False)
+        # and draw the feature plot
+        self.updateFeaturePlot()
 
     def feature_channel_y_changed(self, index):
+        """Event fires when Y channel directly changes."""
+        self.mp_proj.blockSignals(True)
+
         if index == -1:
             return
         self.mp_proj.setChanY(int(
             self.ui.comboBox_feature_y_chan.currentText()) - 1)
 
+        self.mp_proj.blockSignals(False)
+        self.updateFeaturePlot()
+
     def button_next_feature_click(self):
+        """Steps forward to the next feature, looping as needed."""
+        # if we're at the end of the current y channel range
         if (self.ui.comboBox_feature_y_chan.currentIndex()
                 == self.ui.comboBox_feature_y_chan.count() - 1):
-
+            # but not at the end of the current x channel range
             if not (self.ui.comboBox_feature_x_chan.currentIndex()
                     == self.ui.comboBox_feature_x_chan.count() - 1):
-
                 # step x to the next projection
-                self.redrawing_proj = True
                 self.ui.comboBox_feature_x_chan.setCurrentIndex(
                     self.ui.comboBox_feature_x_chan.currentIndex() + 1)
-
-                # but this time we do want to loop around the y projection
-                self.ui.comboBox_feature_y_chan.setCurrentIndex(0)
-                self.redrawing_proj = False
-                self.updateFeaturePlot()
         else:
             self.ui.comboBox_feature_y_chan.setCurrentIndex(
                 self.ui.comboBox_feature_y_chan.currentIndex() + 1)
 
     def button_prev_feature_click(self):
+        """Steps back to the previous feature channel, looping as needed."""
         if self.ui.comboBox_feature_y_chan.currentIndex() == 0:
             if not self.ui.comboBox_feature_x_chan.currentIndex() == 0:
                 # step x to the previous projection
-                self.redrawing_proj = True
-                self.ui.comboBox_feature_x_chan.setCurrentIndex(
-                    self.ui.comboBox_feature_x_chan.currentIndex() - 1)
                 # but this time we do want to loop around the y projection
-                self.ui.comboBox_feature_y_chan.setCurrentIndex(
-                        self.ui.comboBox_feature_y_chan.count() - 1)
-                self.redrawing_proj = False
-                self.updateFeaturePlot()
+
+                self.ui.comboBox_feature_x_chan.blockSignals(True)
+                self.ui.comboBox_feature_x_chan.setCurrentIndex(
+                        self.ui.comboBox_feature_x_chan.currentIndex() - 1)
+                self.ui.comboBox_feature_x_chan.blockSignals(False)
+                self.feature_channel_x_changed(
+                        self.ui.comboBox_feature_x_chan.currentIndex(),
+                        setYtoLast=True)
         else:
             self.ui.comboBox_feature_y_chan.setCurrentIndex(
                 self.ui.comboBox_feature_y_chan.currentIndex() - 1)
 
     def load_spikefile(self, fname):
+        """Loads a spikeset from the given filename, imports clusters, etc."""
         if self.unsaved:
             reply = QtGui.QMessageBox.question(self, 'Save',
                 "Do you want to save before loading?", QtGui.QMessageBox.Yes |
@@ -1070,24 +1084,20 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if reply == QtGui.QMessageBox.No:
                 pass
 
-        self.redrawing_proj = True
-
         self.matches = None
         print ''
         print 'Trying to load file: ', fname
         print 'Clearing current clusters'
-        for cluster in self.clusters[:]:
-            self.delete_cluster(cluster)
+        if self.spikeset is not None:
+            for cluster in self.spikeset.clusters[:]:
+                self.delete_cluster(cluster)
 
-        self.redrawing_proj = True
         self.spikeset = None
         self.current_feature = None
         self.mp_proj.resetLimits()
-        self.clusters = []
         self.junk_cluster = None
         self.current_filename = None
         self.limit_mode = False
-        self.redrawing_details = False
         self.unsaved = False
         self.ui.checkBox_show_unclustered.setChecked(True)
         self.ui.checkBox_show_unclustered_exclusive.setChecked(True)
@@ -1106,7 +1116,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.t_bins = np.arange(self.spikeset.time[0],
             self.spikeset.time[-1], 60e6)
-
         self.t_bin_centers = ((self.t_bins[0:-1] + self.t_bins[1:]) / 2
              - self.spikeset.time[0]) / 60e6
 
@@ -1148,95 +1157,38 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.junk_cluster.add_bounds.append(jbound)
 
         self.junk_cluster.calculateMembership(self.spikeset)
-        self.mp_proj.resetLimits()
 
         # Autoload any existing boundary files for this data set
         imported_bounds = False
-
         boundfilename = str(fname) + os.extsep + 'bounds'
         if os.path.exists(boundfilename) and (not imported_bounds):
             print "Found boundary file", boundfilename
-            self.importBounds(boundfilename)
+            self.spikeset.importBounds(boundfilename)
             imported_bounds = True
-
         (root, ext) = os.path.splitext(str(fname))
         boundfilename = root + os.extsep + 'bounds'
         if os.path.exists(boundfilename):
             print "Found boundary file", boundfilename
-            self.importBounds(boundfilename)
+            self.spikeset.importBounds(boundfilename)
             imported_bounds = True
 
-       # Set the combo boxes to the current feature for now
+        # see if there is a modified klustakwik cluster file to load
+        ackkfilename = fname + os.extsep + 'ackk'
+        if (not imported_bounds) and os.path.exists(ackkfilename):
+            self.spikeset.importAckk(ackkfilename)
+
+        # Set the combo boxes to the current feature for now
+        self.mp_proj.resetLimits()
         self.ui.comboBox_feature_x.clear()
         for name in self.spikeset.featureNames():
             self.ui.comboBox_feature_x.addItem(name)
 
-        self.redrawing_proj = False
-        self.updateFeaturePlot()
-        self.updateClusterDetailPlots()
-
         self.current_filename = str(fname)
-
         self.ui.stackedWidget.setCurrentIndex(0)
 
-        # see if there is a modified klustakwik cluster file to load
-        kkwikfilename = fname + os.extsep + 'ackk'
-        if (not imported_bounds) and os.path.exists(kkwikfilename):
-            print "Found KKwik cluster file", kkwikfilename, ':',
-            # Everything is little endian
-            # A .ackk record is as folows:
-            # Header:
-            # uint32 + n x char - subject string
-            # uint32 + n x char - session date string
-            # uint64 - num spikes
-            # uint16 x N - spike cluster IDs
-            f = open(kkwikfilename, 'rb')
-            subjectstr = spikeset_io.readStringFromBinary(f)
-            datestr = spikeset_io.readStringFromBinary(f)
-            num_samps, = struct.unpack('<Q', f.read(8))
-
-            if num_samps != self.spikeset.N:
-                print "Sample counts don't match up, invalid .ackk file"
-                print num_samps
-                print self.spikeset.N
-                f.close()
-                return
-            elif subjectstr != self.spikeset.subject:
-                print "Subject lines don't match up, invalid .ackk file"
-                f.close()
-                return
-            elif datestr != self.spikeset.session:
-                print "Session date strings don't match up, invalid .ackk file"
-                f.close()
-                return
-
-            labels = np.fromfile(f, dtype=np.dtype('<h'), count=num_samps)
-            f.close()
-
-            # get a list of cluster numbers
-            k = np.unique(labels)
-            print np.size(k) - 1, 'components.'
-            colors = unique_colors.unique_colors_hsv(np.size(k) - 1)
-
-            # create the clusters for each component in the KK file.
-            if np.size(k) > 1:
-                print "Importing clusters from .ackk",
-                for i in k:
-                    if i == 0:
-                        continue
-                    print i,
-                    sys.stdout.flush()
-                    cluster = self.add_cluster(
-                        color=tuple([int(a * 255) for a in colors[i - 1]]))
-
-                    cluster.membership_model.append(
-                            mmodel.PrecalculatedLabelsMembershipModel(
-                                labels, [i]))
-                    cluster.calculateMembership(self.spikeset)
-                print "."
-
-                self.update_active_cluster()
-                self.updateFeaturePlot()
+        self.update_ui_cluster_buttons()
+        self.updateClusterDetailPlots()
+        self.updateFeaturePlot()
 
     @QtCore.pyqtSlot('bool')
     def on_actionOpen_triggered(self, checked=None):
@@ -1248,18 +1200,15 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.load_spikefile(str(fname))
 
     def updateFeaturePlot(self):
-        if self.redrawing_proj:
-            return
         if not self.spikeset or not self.junk_cluster:
             return
 
         check_boxes = [ui[3] for ui in self.cluster_ui_buttons] + [
                 self.junk_cluster.check]
         self.mp_proj.updatePlot(self.spikeset,
-                self.clusters, self.junk_cluster, check_boxes)
+                self.spikeset.clusters, self.junk_cluster, check_boxes)
 
         self.mp_proj.draw()
-        self.redrawing_proj = False
 
     def updateClusterDetailPlots(self):
         if self.spikeset is None:
@@ -1376,7 +1325,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot('bool')
     def on_actionSave_triggered(self, checked=None):
-        if not (self.current_filename and self.clusters):
+        if not (self.current_filename and self.spikeset.clusters):
             return
 
         (root, ext) = os.path.splitext(self.current_filename)
@@ -1397,7 +1346,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 'add_bounds':  cluster.add_bounds,
                 'del_bounds': cluster.del_bounds,
                 'mmodel': cluster.membership_model}
-                        for cluster in self.clusters]
+                        for cluster in self.spikeset.clusters]
             dumping['clusters'] = sb
 
             pickle.dump(versionstr, outfile)
@@ -1410,7 +1359,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             save_bounds = [(cluster.color, cluster.bounds, cluster.wave_bounds,
                 cluster.add_bounds, cluster.del_bounds,
                 cluster.membership_model)
-                for cluster in self.clusters]
+                for cluster in self.spikeset.clusters]
 
             pickle.dump(save_bounds, outfile)
             print "Saved bounds to", outfilename
@@ -1422,17 +1371,17 @@ class PyClustMainWindow(QtGui.QMainWindow):
         outfilename = self.current_filename + os.extsep + 'mat'
 
         cluster_member = np.column_stack(tuple([cluster.member
-            for cluster in self.clusters]))
-        cluster_stats = [cluster.stats for cluster in self.clusters]
+            for cluster in self.spikeset.clusters]))
+        cluster_stats = [cluster.stats for cluster in self.spikeset.clusters]
 
         save_data = {'cluster_id': cluster_member,
             'spike_time': self.spikeset.time,
             'subject': self.spikeset.subject,
             'session': self.spikeset.session}
-#        if self.matches is not None:
-#            save_data['match_subject'] = self.matches[0][1]
-#            save_data['match_session'] = self.matches[1][1]
-#            save_data['matches'] = self.matches[2]
+            #        if self.matches is not None:
+            #            save_data['match_subject'] = self.matches[0][1]
+            #            save_data['match_session'] = self.matches[1][1]
+            #            save_data['matches'] = self.matches[2]
 
         for key in cluster_stats[0].keys():
             save_data[key] = [stat[key] for stat in cluster_stats]
@@ -1456,73 +1405,26 @@ class PyClustMainWindow(QtGui.QMainWindow):
             'Open ntt file', filter='*.bounds')
         if not filename:
             return
-        self.importBounds(filename)
-
-    def importBounds(self, filename=None):
         if os.path.exists(filename):
-            infile = open(filename, 'rb')
-
-            versionstr = pickle.load(infile)
-            if versionstr == "0.0.1":
-                print "Saved bounds version 0.0.1"
-
-                dumped = pickle.load(infile)
-                self.spikeset.calculateFeatures(dumped['feature_special'])
-                self.matches = dumped['matches']
-
-                self.redrawing_details = True
-                print "Founds", len(dumped['clusters']),
-                print "bounds to import, creating clusters."
-                for cluster in dumped['clusters']:
-                    clust = self.add_cluster(cluster['color'])
-                    clust.bounds = cluster['bounds']
-                    clust.wave_bounds = cluster['wave_bounds']
-                    clust.add_bounds = cluster['add_bounds']
-                    clust.del_bounds = cluster['del_bounds']
-                    clust.membership_model = cluster['mmodel']
-                    clust.calculateMembership(self.spikeset)
-                self.redrawing_details = False
-                self.updateClusterDetailPlots()
-                self.updateFeaturePlot()
-
-            else:
-                print "Saved bounds version 0.0.0"
-
-                # the old, very inflexible way of doing things
-                special = versionstr
-                #special = pickle.load(infile)
-                self.spikeset.calculateFeatures(special)
-
-                self.matches = pickle.load(infile)
-
-                saved_bounds = pickle.load(infile)
-                infile.close()
-                print "Found", len(saved_bounds),
-                print "bounds to import, creating clusters."
-                self.redrawing_details = True
-                for (col, bound, wave_bound, add_bound, del_bound) \
-                        in saved_bounds:
-                    clust = self.add_cluster(col)
-                    clust.bounds = bound
-                    clust.wave_bounds = wave_bound
-                    clust.add_bounds = add_bound
-                    clust.del_bounds = del_bound
-                    clust.calculateMembership(self.spikeset)
-                self.redrawing_details = False
-                self.updateClusterDetailPlots()
-                self.updateFeaturePlot()
+            self.spikeset.importBounds(filename)
+            self.update_ui_cluster_buttons()
+            self.updateClusterDetailPlots()
+            self.updateFeaturePlot()
 
     @QtCore.pyqtSlot('bool')
     def on_actionCopy_Cluster_triggered(self, checked=None):
         if self.activeClusterRadioButton():
-            self.redrawing_details = True
+            #self.redrawing_details = True
             backup = self.activeClusterRadioButton().cluster_reference
-            clust = self.add_cluster()
+
+            clust = self.spikeset.addCluster()
             clust.bounds = backup.bounds
             clust.membership_model = backup.membership_model
             clust.add_bounds = backup.add_bounds
             clust.calculateMembership(self.spikeset)
-            self.redrawing_details = False
+            #self.redrawing_details = False
+
+            self.update_ui_cluster_buttons()
             self.updateClusterDetailPlots()
             self.updateFeaturePlot()
 
@@ -1726,24 +1628,16 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
                 self.mp_outlier.axes.plot(centers, count_ref, 'k')
 
-#            chi = spikeset.chi2f(centers, np.size(self.spikeset.spikes,1) *
-#                    np.size(self.spikeset.spikes,2) - 1)
             chi = scipy.stats.chi2.pdf(centers, 4)
-#                    np.size(self.spikeset.spikes, 1) *
-#                    np.size(self.spikeset.spikes, 2) - 1)
-
             chi = chi / np.sum(chi)
 
             self.mp_outlier.axes.plot(centers, chi, 'r--')
-
             self.mp_outlier.axes.set_xscale('log')
             self.mp_outlier.axes.set_xlim([m1, m2])
 
             endpoint = scipy.stats.chi2.ppf(
                 ((float(cluster.stats['num_spikes']) - 1.0) /
                 cluster.stats['num_spikes']), 4)
-            #np.size(self.spikeset.spikes, 1)
-#                * np.size(self.spikeset.spikes, 2) - 1)
 
             endpoint_line = mpl.lines.Line2D([endpoint, endpoint],
                 self.mp_outlier.axes.get_ylim(), color='g', linestyle='--')

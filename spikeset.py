@@ -8,6 +8,9 @@ import random
 
 import pickle
 import hashlib
+import os
+import sys
+import struct
 
 import scipy.stats
 import numpy as np
@@ -17,6 +20,9 @@ from PyQt4 import QtGui
 
 import features
 import boundaries
+import unique_colors
+import mmodel
+import spikeset_io
 
 # pickle needs this to load the saved bounds
 #from boundaries import BoundaryPolygon2D
@@ -43,8 +49,10 @@ class Spikeset:
         self.subject = subject
         self.session = session
         self.T = (max(self.time) - min(self.time)) / 1e6
+        self.clusters = []
 
     def saveFeatures(self, filename):
+        """Save feature info (PCA coefficients) to file."""
         print "Saving features info, spikeset hash",
         f = open(filename, 'wb')
         # compute a hash for the spikeset
@@ -55,6 +63,7 @@ class Spikeset:
         pickle.dump(self.feature_special, f)
 
     def loadFeatures(self, filename):
+        """Load feature info (PCA coefficients) from filename."""
         f = open(filename, 'rb')
         loadhash = pickle.load(f)
         b = self.spikes.view(np.uint8)
@@ -68,6 +77,7 @@ class Spikeset:
             print "Hashes don't match, features are from a different dataset."
 
     def calculateFeatures(self, special=None):
+        """Calculate the standard battery of features."""
         print "Computing features."
         if not special:
             self.feature_special = dict()
@@ -81,25 +91,152 @@ class Spikeset:
         self.features.append(features.Feature_Time(self))
         self.features.append(features.Feature_Valley(self))
         self.features.append(features.Feature_Trough(self))
-#        self.features.append(features.Feature_CoM(self))
+        #self.features.append(features.Feature_CoM(self))
 
         if self.use_pca:
             self.features.append(
                     features.Feature_PCA(self, self.feature_special['PCA']))
+            #self.features.append(features.Feature_Waveform_PCA(self))
             self.feature_special['PCA'] = self.featureByName('PCA').coeff
-#            self.features.append(features.Feature_Waveform_PCA(self))
 
     def __del__(self):
+        """Destructor."""
         print "Spikeset object being destroyed"
 
     def featureNames(self):
+        """Return list of feature names."""
         return [feature.name for feature in self.features]
 
     def featureByName(self, name):
+        """Retrieve the feature with the given name."""
         for feature in self.features:
             if feature.name == name:
                 return feature
         return None
+
+    def addCluster(self, color=None):
+        """Adds a new cluster to the existing list. Auto chooses color."""
+        new_cluster = Cluster(self)
+        if color:
+            new_cluster.color = color
+        else:
+            color_list = [map(lambda x: x / 255.0, cluster.color) for
+                    cluster in self.clusters]
+            if color_list == []:
+                new_cluster.color = (50, 170, 170)
+            else:
+                c = unique_colors.newcolor(color_list)
+                new_cluster.color = tuple(map(lambda x: int(x * 255), c))
+        self.clusters.append(new_cluster)
+        return new_cluster
+
+    def importBounds(self, filename):
+        """Imports cluster boundaries from an existing .bounds file"""
+        if not os.path.exists(filename):
+            return
+
+        infile = open(filename, 'rb')
+
+        versionstr = pickle.load(infile)
+        if versionstr == "0.0.1":
+            print "Saved bounds version 0.0.1"
+
+            dumped = pickle.load(infile)
+            #self.calculateFeatures(dumped['feature_special'])
+
+            print "Founds", len(dumped['clusters']),
+            print "bounds to import, creating clusters."
+            for cluster in dumped['clusters']:
+                clust = Cluster(self)
+                clust.color = cluster['color']
+                clust.bounds = cluster['bounds']
+                clust.wave_bounds = cluster['wave_bounds']
+                clust.add_bounds = cluster['add_bounds']
+                clust.del_bounds = cluster['del_bounds']
+                clust.membership_model = cluster['mmodel']
+                clust.calculateMembership(self)
+                self.clusters.append(clust)
+
+        else:
+            print "Saved bounds version 0.0.0"
+            # the old, very inflexible way of doing things
+            #special = versionstr
+            #special = pickle.load(infile)
+            pickle.load(infile)
+            #self.spikeset.calculateFeatures(special)
+            saved_bounds = pickle.load(infile)
+            print "Found", len(saved_bounds),
+            print "bounds to import, creating clusters."
+            for (col, bound, wave_bound, add_bound, del_bound) \
+                    in saved_bounds:
+                clust = Cluster(self)
+                clust.color = col
+                clust.bounds = bound
+                clust.wave_bounds = wave_bound
+                clust.add_bounds = add_bound
+                clust.del_bounds = del_bound
+                clust.calculateMembership(self)
+                self.clusters.append(clust)
+
+        infile.close()
+
+    def importAckk(self, filename):
+        """Imports preclustered spike IDs from .ackk file."""
+        if not os.path.exists(filename):
+            return
+
+        #print "Found KKwik cluster file", filename, ':',
+        # Everything is little endian
+        # A .ackk record is as folows:
+        # Header:
+        # uint32 + n x char - subject string
+        # uint32 + n x char - session date string
+        # uint64 - num spikes
+        # uint16 x N - spike cluster IDs
+        f = open(filename, 'rb')
+        subjectstr = spikeset_io.readStringFromBinary(f)
+        datestr = spikeset_io.readStringFromBinary(f)
+        num_samps, = struct.unpack('<Q', f.read(8))
+
+        if num_samps != self.N:
+            print "Sample counts don't match up, invalid .ackk file"
+            print num_samps
+            print self.spikeset.N
+            f.close()
+            return
+        elif subjectstr != self.subject:
+            print "Subject lines don't match up, invalid .ackk file"
+            f.close()
+            return
+        elif datestr != self.session:
+            print "Session date strings don't match up, invalid .ackk file"
+            f.close()
+            return
+
+        labels = np.fromfile(f, dtype=np.dtype('<h'), count=num_samps)
+        f.close()
+
+        # get a list of cluster numbers
+        k = np.unique(labels)
+        print np.size(k) - 1, 'components.'
+        colors = unique_colors.unique_colors_hsv(np.size(k) - 1)
+
+        # create the clusters for each component in the KK file.
+        if np.size(k) > 1:
+            print "Importing clusters from .ackk",
+            for i in k:
+                if i == 0:
+                    continue
+                print i,
+                sys.stdout.flush()
+                cluster = self.addCluster(
+                    color=tuple([int(a * 255) for a in colors[i - 1]]))
+
+                cluster.membership_model.append(
+                        mmodel.PrecalculatedLabelsMembershipModel(
+                            labels, [i]))
+                cluster.calculateMembership(self)
+            print "."
 
 
 # Clusters have a color, a set of boundaries and some calculation functions
