@@ -254,6 +254,10 @@ class Cluster:
         self.refractory = np.array([False] * spikeset.N)
         self.stats = {}
 
+        self.isi_bins = np.logspace(np.log10(0.1), np.log10(1e5), 100)
+        self.isi_bin_centers = (self.isi_bins[0:-1] + self.isi_bins[1:]) / 2
+        self.isi_bin_count = np.zeros(self.isi_bin_centers.shape)
+
     def __del__(self):
         # print "Cluster object being destroyed"
         pass
@@ -321,10 +325,18 @@ class Cluster:
                 spikeset.spikes[:, sample, chan] <= upper_bound)
             self.member = np.logical_and(self.member, w)
 
+        # calculate mean waveform
+        self.wv_mean = np.mean(spikeset.spikes[self.member, :, :], axis=0)
+        self.wv_std = np.std(spikeset.spikes[self.member, :, :], axis=0)
+
+
         t = spikeset.time[self.member]
         self.refr_period = 1.7
         self.burst_period = 20
         self.isi = (t[1:] - t[0:-1]) / 1e3
+
+        # calculate the isi histogram
+        self.isi_bin_count, _ = np.histogram(self.isi, self.isi_bins)
 
         self.refractory = np.array([False] * spikeset.N)
         #ref = np.logical_and(self.isi < self.refr_period, self.isi> 0.8)

@@ -13,6 +13,7 @@ from PyQt4 import QtCore, QtGui
 import numpy as np
 import scipy.io as sio
 import scipy.stats
+import scipy.signal
 import matplotlib as mpl
 mpl.use('Qt4Agg')
 
@@ -21,6 +22,7 @@ import os
 import sys
 import time
 
+
 from gui import Ui_MainWindow
 from gui_sessiontracker import Ui_SessionTrackerDialog
 
@@ -28,6 +30,37 @@ import spikeset
 import spikeset_io
 import featurewidget
 import boundaries
+import mmodel
+
+
+def xcorr_ts(t1, t2, demean=True, normed=True, binsize=2, maxlag=None):
+    """Computes the xcorr of spiketrains times t1 and t2. Units assumed ms."""
+    binary_xo = np.arange(np.min([np.min(t1), np.min(t2)]) - binsize,
+                            np.max([np.max(t1), np.max(t2)]) + binsize,
+                            binsize)
+    binary_t1, _ = np.histogram(t1, binary_xo)
+    binary_t2, _ = np.histogram(t2, binary_xo)
+
+    n = binary_t1.size
+    xc = xcorr(binary_t1, binary_t2, demean=demean, normed=normed)
+    lags = np.arange(- n + 1, n) * binsize
+
+    if maxlag is not None:
+        w = np.abs(lags) <= maxlag
+        return (lags[w], xc[w])
+    else:
+        return (lags, xc)
+
+
+def xcorr(x1, x2, demean=True, normed=True):
+    """Computes the xcorr of time series x1 & x2."""
+    if demean:
+        x1 = x1 - np.mean(x1)
+        x2 = x2 - np.mean(x2)
+    c = scipy.signal.fftconvolve(x1, x2[::-1], mode='full')
+    if normed:
+        c /= np.sqrt(np.dot(x1, x1) * np.dot(x2, x2))
+    return c
 
 
 class PyClustSessionTrackerDialog(QtGui.QDialog):
@@ -187,6 +220,185 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateFeaturePlot()
 
     @QtCore.pyqtSlot('bool')
+    def on_actionMerge_Clusters_triggered(self, checked=None):
+        active = self.activeClusterRadioButton()
+        if active and active.cluster_reference != self.junk_cluster:
+            # get the current cluster 'number'
+
+            clust = active.cluster_reference
+
+            # create a backup cluster to revert to if we cancel
+            self.merge_clust = spikeset.Cluster(self.spikeset)
+            # dont want the backup in the list for now
+            self.merge_clust.color = clust.color
+            self.merge_clust.bounds = clust.bounds
+            self.merge_clust.membership_model = clust.membership_model
+            self.merge_clust.add_bounds = clust.add_bounds
+            self.merge_clust.calculateMembership(self.spikeset)
+
+            id1 = self.spikeset.clusters.index(clust)
+            self.merge_id_1 = id1
+            self.ui.comboBox_merge_c1.clear()
+            self.ui.comboBox_merge_c1.addItem("Cluster %d" % (id1 + 1))
+            self.ui.comboBox_merge_c1.setEnabled(False)
+
+            self.ui.comboBox_merge_c2.blockSignals(True)
+            self.ui.comboBox_merge_c2.clear()
+            for i in xrange(len(self.spikeset.clusters)):
+                if i == id1:
+                    continue
+                self.ui.comboBox_merge_c2.addItem("Cluster %d" % (i + 1))
+            self.ui.comboBox_merge_c2.blockSignals(False)
+
+            self.ui.stackedWidget.setCurrentIndex(3)
+            self.merge_cluster_choice_changed(0)
+
+    def merge_apply(self):
+        """Keep the merge boundaries, and delete other cluster."""
+        # if we've decided to apply the merge, should remove the other cluster
+        self.ui.stackedWidget.setCurrentIndex(0)
+        self.delete_cluster(self.spikeset.clusters[self.merge_id_2])
+
+        self.merge_clust = None
+        self.merge_id_1 = None
+        self.merge_id_2 = None
+
+    def merge_cancel(self):
+        """Cancel the merge, revert to original boundaries."""
+        self.ui.stackedWidget.setCurrentIndex(0)
+        # revert the active cluster to the original bounds
+        clust = self.spikeset.clusters[self.merge_id_1]
+        clust.bounds = self.merge_clust.bounds
+        clust.membership_model = self.merge_clust.membership_model
+        clust.add_bounds = clust.add_bounds
+        clust.calculateMembership(self.spikeset)
+        self.updateClusterDetailPlots()
+
+        self.merge_clust = None
+        self.merge_id_1 = None
+        self.merge_id_2 = None
+
+    def merge_redraw(self):
+        """Redraws the merge interface, called after UI events."""
+        if self.merge_clust is None:
+            return
+
+        cf = lambda s: s / 255.0
+        w1 = self.merge_clust.member
+        col1 = map(cf, self.merge_clust.color)
+        w2 = self.spikeset.clusters[self.merge_id_2].member
+        col2 = map(cf, self.spikeset.clusters[self.merge_id_2].color)
+        w3 = self.junk_cluster.member
+        refr = self.spikeset.clusters[self.merge_id_1].refractory
+
+        #wv1 = np.mean(self.spikeset.spikes[w1, :, :], axis=0)
+        wv1 = self.merge_clust.wv_mean
+        wv1 = wv1.T.reshape((wv1.size,))
+        #wv2 = np.mean(self.spikeset.spikes[w2, :, :], axis=0)
+        wv2 = self.spikeset.clusters[self.merge_id_2].wv_mean
+        wv2 = wv2.T.reshape((wv2.size,))
+
+        # plot the xcorr
+        self.ui.mplwidget_merge_xcorr.figure.clear()
+        ax = self.ui.mplwidget_merge_xcorr.figure.add_subplot(1, 1, 1)
+        ax.plot(self.merge_plot_lags, self.merge_plot_xc)
+        ax.set_xlim([-100, 100])
+        ax.set_ylim([0, ax.get_ylim()[1]])
+        ax.plot([0, 0], ax.get_ylim(), 'k--')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        self.ui.mplwidget_merge_xcorr.draw()
+
+        # Plot the waveforms
+        self.ui.mplwidget_merge_wv.figure.clear()
+        ax = self.ui.mplwidget_merge_wv.figure.add_subplot(1, 1, 1)
+        ax.plot(wv1, color=col1)
+        ax.plot(wv2, color=col2)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        self.ui.mplwidget_merge_wv.draw()
+
+        # now draw the projections
+        self.ui.mplwidget_merge.figure.clear()
+        data = self.spikeset.featureByName('Peak').data
+        chans = data.shape[1]
+        combs = scipy.misc.comb(chans, 2)
+        plots_x = np.ceil(np.sqrt(combs))
+        plots_y = np.ceil(float(combs) / plots_x)
+        counter = 0
+        for proj_x in range(0, chans):
+            for proj_y in range(proj_x + 1, chans):
+                counter = counter + 1
+                ax = self.ui.mplwidget_merge.figure.add_subplot(
+                    plots_y, plots_x, counter)
+                # plot unclustered
+                ax.plot(data[w1, proj_x], data[w1, proj_y],
+                                 marker='o', markersize=1,
+                                 markerfacecolor=col1, markeredgecolor=col1,
+                                 linestyle='None', zorder=1)
+                ax.plot(data[w2, proj_x], data[w2, proj_y],
+                                 marker='o', markersize=1,
+                                 markerfacecolor=col2, markeredgecolor=col2,
+                                 linestyle='None', zorder=1)
+                ax.autoscale()
+                if self.ui.checkBox_merge_background.isChecked():
+                    xl = ax.get_xlim()
+                    yl = ax.get_ylim()
+                    not_junk = (~w1) & (~w2) & (~w3)
+                    # don't plot things we know to be outside the plot limits
+                    within_xl = (data[:, proj_x] >= xl[0]) & \
+                                (data[:, proj_x] <= xl[1])
+                    within_yl = (data[:, proj_y] >= yl[0]) & \
+                                (data[:, proj_y] <= yl[1])
+                    ax.plot(data[not_junk & within_xl & within_yl, proj_x],
+                            data[not_junk & within_xl & within_yl, proj_y],
+                                    marker='o', markersize=0.1,
+                                    markerfacecolor='k', markeredgecolor='k',
+                                    linestyle='None', zorder=0)
+                    ax.set_xlim(xl)
+                    ax.set_ylim(yl)
+                if ax.get_xlim()[0] < 0:
+                    ax.set_xlim([0, ax.get_xlim()[1]])
+                if ax.get_ylim()[0] < 0:
+                    ax.set_ylim([0, ax.get_ylim()[1]])
+                if self.mp_proj.refractory:
+                    ax.plot(data[refr, proj_x], data[refr, proj_y],
+                                    marker='o', markersize=2,
+                                    markerfacecolor='k', markeredgecolor='k',
+                                    linestyle='None', zorder=2)
+        self.ui.mplwidget_merge.draw()
+
+    def merge_cluster_choice_changed(self, index):
+        """Event fires when a different cluster match is chosen for merge."""
+        if index == -1:
+            return
+        if index >= self.merge_id_1:
+            self.merge_id_2 = index + 1
+        else:
+            self.merge_id_2 = index
+
+        # Update the 'merged' membership for the details plot
+        w1 = self.merge_clust.member
+        w2 = self.spikeset.clusters[self.merge_id_2].member
+        clust = self.spikeset.clusters[self.merge_id_1]
+        clust.bounds = []
+        clust.add_bounds = []
+        clust.wave_bounds = []
+        labels = (w1 | w2).astype(np.int)
+        clust.membership_model = [mmodel.PrecalculatedLabelsMembershipModel(
+            labels, [1])]
+        clust.calculateMembership(self.spikeset)
+
+        # compute the xcorr
+        t1 = self.spikeset.time[w1]
+        t2 = self.spikeset.time[w2]
+        self.merge_plot_lags, self.merge_plot_xc = xcorr_ts(t1 / 1e3, t2 / 1e3,
+                        maxlag=100, normed=False, demean=False, binsize=1.5)
+
+        self.merge_redraw()
+        self.updateClusterDetailPlots()
+
+    @QtCore.pyqtSlot('bool')
     def on_actionAutotrim_triggered(self, checked=None):
         active = self.activeClusterRadioButton()
         if active and active.cluster_reference != self.junk_cluster:
@@ -216,8 +428,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
     def on_actionRefractory_triggered(self, checked=None):
         self.mp_proj.setRefractory(checked)
         self.ui.checkBox_refractory.blockSignals(True)
+        self.ui.checkBox_merge_refractory.blockSignals(True)
         self.ui.checkBox_refractory.setChecked(checked)
+        self.ui.checkBox_merge_refractory.setChecked(checked)
         self.ui.checkBox_refractory.blockSignals(False)
+        self.ui.checkBox_merge_refractory.blockSignals(False)
+        self.merge_redraw()
 
     @QtCore.pyqtSlot('bool')
     def on_actionScatter_triggered(self, checked=None):
@@ -350,6 +566,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.matches = None
         self.current_filename = None
         self.junk_cluster = None
+        self.merge_clust = None
 
         self.limit_mode = False
         self.unsaved = False
@@ -369,6 +586,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.pushButton_identify.clicked.connect(
                 self.switch_to_sessiontracker)
 
+        self.ui.checkBox_merge_background.clicked.connect(
+                self.merge_redraw)
+
         QtCore.QObject.connect(self.ui.comboBox_feature_x_chan,
             QtCore.SIGNAL("currentIndexChanged(int)"),
             self.feature_channel_x_changed)
@@ -384,6 +604,10 @@ class PyClustMainWindow(QtGui.QMainWindow):
         QtCore.QObject.connect(self.ui.comboBox_feature_y,
             QtCore.SIGNAL("currentIndexChanged(int)"),
             self.feature_y_changed)
+
+        QtCore.QObject.connect(self.ui.comboBox_merge_c2,
+            QtCore.SIGNAL("currentIndexChanged(int)"),
+            self.merge_cluster_choice_changed)
 
         QtCore.QObject.connect(self.ui.pushButton_next_projection,
             QtCore.SIGNAL("clicked()"), self.button_next_feature_click)
@@ -435,6 +659,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.pushButton_autotrim_apply.clicked.connect(self.autotrim_apply)
         self.ui.pushButton_autotrim_cancel.clicked.connect(
             self.autotrim_cancel)
+
+        self.ui.pushButton_merge_apply.clicked.connect(self.merge_apply)
+        self.ui.pushButton_merge_cancel.clicked.connect(self.merge_cancel)
 
         self.ui.label_subjectid.setText('')
         self.ui.label_session.setText('')
@@ -535,9 +762,18 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_drift.figure.clear()
         self.mp_drift.figure.set_facecolor(bgcolor)
 
-        # Set up autotrim plot
+        # Set up autotrim and merge plots
         self.ui.mplwidget_autotrim.figure.clear()
         self.ui.mplwidget_autotrim.figure.set_facecolor(bgcolor)
+
+        self.ui.mplwidget_merge.figure.clear()
+        self.ui.mplwidget_merge.figure.set_facecolor(bgcolor)
+
+        self.ui.mplwidget_merge_wv.figure.clear()
+        self.ui.mplwidget_merge_wv.figure.set_facecolor(bgcolor)
+
+        self.ui.mplwidget_merge_xcorr.figure.clear()
+        self.ui.mplwidget_merge_xcorr.figure.set_facecolor(bgcolor)
 
         self.wave_limit_mode = False
         self.mp_wavecutter.mpl_connect('button_press_event',
@@ -571,9 +807,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mp_wave.axes[i].set_yticks([])
 
         # Set up ISI plot axes
-        self.isi_bins = np.logspace(np.log10(0.1), np.log10(1e5), 100)
-        self.isi_bin_centers = (self.isi_bins[0:-1] + self.isi_bins[1:]) / 2
-
         self.mp_isi.figure.clear()
         self.mp_isi.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
             bottom=0.15, top=1, left=0.0, right=1)
@@ -607,8 +840,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_outlier.axes = self.mp_outlier.figure.add_subplot(1, 1, 1)
         self.mp_outlier.draw()
 
-        # Set up autotrim plot
+        # Set up autotrim plot and merge plots
         self.ui.mplwidget_autotrim.figure.subplots_adjust(bottom=0, top=1,
+                left=0, right=1, hspace=0.01, wspace=0.01)
+        self.ui.mplwidget_merge.figure.subplots_adjust(bottom=0, top=1,
+                left=0, right=1, hspace=0.01, wspace=0.01)
+        self.ui.mplwidget_merge_wv.figure.subplots_adjust(bottom=0, top=1,
+                left=0, right=1, hspace=0.01, wspace=0.01)
+        self.ui.mplwidget_merge_xcorr.figure.subplots_adjust(bottom=0, top=1,
                 left=0, right=1, hspace=0.01, wspace=0.01)
 
         # Clear the stats labels
@@ -673,13 +912,21 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if ui[0] == radio:
                 continue
 
+            ui[3].blockSignals(True)
             ui[3].setChecked(not hidden)
+            ui[3].blockSignals(False)
+
             if hidden:
                 # dont show this on show all
+                self.checkBox_junk.blockSignals(True)
                 self.checkBox_junk.setChecked(False)
+                self.checkBox_junk.blockSignals(False)
 
+        #self.ui.checkBox_show_unclustered.blockSignals(True)
         self.ui.checkBox_show_unclustered.setChecked(not hidden)
-        self.updateFeaturePlot()
+        #self.ui.checkBox_show_unclustered.blockSignals(False)
+
+        #self.updateFeaturePlot()
 
     # When we switch clusters, correctly enabled/disable cluster
     # checkboxes, and tell the projection widget to stop drawing
@@ -739,7 +986,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             cbut = QtGui.QPushButton()
             cbut.setMaximumSize(20, 20)
-            cbut.setText(str(i+1))
+            cbut.setText(str(i + 1))
             cbut.setStyleSheet(
                     "QPushButton {background-color: rgb(%d, %d, %d);"
                     % new_cluster.color + " font: bold;" +
@@ -1226,8 +1473,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if N:
                 self.mp_wave.axes[i].errorbar(range(0,
                     np.size(self.spikeset.spikes, 1)),
-                    np.mean(self.spikeset.spikes[w, :, i], axis=0),
-                    np.std(self.spikeset.spikes[w, :, i], axis=0), color='k')
+                    cluster.wv_mean[:, i], cluster.wv_std[:, i], color='k')
             else:
                 self.mp_wave.axes[i].cla()
 
@@ -1237,8 +1483,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         # Draw ISI distribution
         if N:
-            isi_bin_count = np.histogram(cluster.isi, self.isi_bins)[0]
-            self.mp_isi.axes.plot(self.isi_bin_centers, isi_bin_count)
+            self.mp_isi.axes.plot(cluster.isi_bin_centers,
+                                  cluster.isi_bin_count)
         else:
             self.mp_isi.axes.cla()
 
