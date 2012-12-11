@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1125</width>
+    <width>1147</width>
     <height>771</height>
    </rect>
   </property>
@@ -39,7 +39,7 @@
           <property name="frameShadow">
            <enum>QFrame::Plain</enum>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <layout class="QHBoxLayout" name="horizontalLayout_8">
            <item>
             <layout class="QHBoxLayout" name="horizontalLayout_4">
              <item>
@@ -161,94 +161,104 @@
             </widget>
            </item>
            <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_8">
-             <item>
-              <widget class="QRadioButton" name="radioButton_scatter">
-               <property name="minimumSize">
-                <size>
-                 <width>58</width>
-                 <height>17</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>58</width>
-                 <height>17</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>Scatter</string>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_scatter_plot_type</string>
-               </attribute>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="radioButton_density">
-               <property name="minimumSize">
-                <size>
-                 <width>59</width>
-                 <height>17</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>59</width>
-                 <height>17</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>Density</string>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_scatter_plot_type</string>
-               </attribute>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="radioButton_log_density">
-               <property name="minimumSize">
-                <size>
-                 <width>79</width>
-                 <height>17</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>79</width>
-                 <height>17</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>Log D</string>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_scatter_plot_type</string>
-               </attribute>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="checkBox_ellipse">
-               <property name="text">
-                <string>Elliptical</string>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
+            <widget class="QRadioButton" name="radioButton_scatter">
+             <property name="minimumSize">
+              <size>
+               <width>58</width>
+               <height>17</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>58</width>
+               <height>17</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Scatter</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+             <attribute name="buttonGroup">
+              <string notr="true">buttonGroup_scatter_plot_type</string>
+             </attribute>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radioButton_density">
+             <property name="minimumSize">
+              <size>
+               <width>59</width>
+               <height>17</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>59</width>
+               <height>17</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Density</string>
+             </property>
+             <attribute name="buttonGroup">
+              <string notr="true">buttonGroup_scatter_plot_type</string>
+             </attribute>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radioButton_log_density">
+             <property name="minimumSize">
+              <size>
+               <width>50</width>
+               <height>17</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>79</width>
+               <height>17</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Log D</string>
+             </property>
+             <property name="checked">
+              <bool>false</bool>
+             </property>
+             <attribute name="buttonGroup">
+              <string notr="true">buttonGroup_scatter_plot_type</string>
+             </attribute>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkBox_ellipse">
+             <property name="text">
+              <string>Elliptical</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkBox_overview">
+             <property name="text">
+              <string>Overview</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_2">
+             <property name="sizeConstraint">
+              <enum>QLayout::SetDefaultConstraint</enum>
+             </property>
              <item>
               <widget class="QLabel" name="label_3">
                <property name="minimumSize">
                 <size>
-                 <width>59</width>
+                 <width>35</width>
                  <height>20</height>
                 </size>
                </property>
@@ -259,7 +269,7 @@
                 </size>
                </property>
                <property name="text">
-                <string>Marker Size:</string>
+                <string>Marker</string>
                </property>
               </widget>
              </item>
@@ -321,15 +331,7 @@
            <property name="frameShadow">
             <enum>QFrame::Raised</enum>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_3">
-            <item>
-             <widget class="MatplotlibWidget" name="mplwidget_projection" native="true">
-              <property name="autoFillBackground">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
+           <layout class="QVBoxLayout" name="verticalLayout_3"/>
           </widget>
           <widget class="QFrame" name="frame_2">
            <property name="minimumSize">
@@ -836,19 +838,6 @@
            </layout>
           </item>
           <item>
-           <spacer name="horizontalSpacer_18">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
            <widget class="MatplotlibWidget" name="mplwidget_merge_wv" native="true">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
@@ -866,51 +855,6 @@
              <bool>true</bool>
             </property>
            </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer_6">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="MatplotlibWidget" name="mplwidget_merge_xcorr" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>250</width>
-              <height>100</height>
-             </size>
-            </property>
-            <property name="autoFillBackground">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer_19">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
           </item>
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_10">
@@ -958,118 +902,6 @@
        </size>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_6">
-       <item>
-        <widget class="QFrame" name="frame_4">
-         <property name="maximumSize">
-          <size>
-           <width>267</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="frameShape">
-          <enum>QFrame::StyledPanel</enum>
-         </property>
-         <property name="frameShadow">
-          <enum>QFrame::Raised</enum>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_7">
-          <item>
-           <widget class="QPushButton" name="pushButton">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Load</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_save">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Save</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_import">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Import</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_identify">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>50</width>
-              <height>23</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Identify</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
        <item>
         <widget class="QFrame" name="frame_details_display">
          <property name="minimumSize">
@@ -1602,7 +1434,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1125</width>
+     <width>1147</width>
      <height>21</height>
     </rect>
    </property>
@@ -1622,6 +1454,7 @@
     </property>
     <addaction name="actionAdd_Cluster"/>
     <addaction name="actionMerge_Clusters"/>
+    <addaction name="actionSplit_Cluster"/>
     <addaction name="actionCopy_Cluster"/>
     <addaction name="separator"/>
     <addaction name="actionDelete_Cluster"/>
@@ -1659,6 +1492,7 @@
      <addaction name="actionLog_Density"/>
     </widget>
     <addaction name="actionRefractory"/>
+    <addaction name="actionOverview_Mode"/>
     <addaction name="menuMarker_Size"/>
     <addaction name="menuProjection_Type"/>
    </widget>
@@ -1804,6 +1638,22 @@
     <string>Eliptical Bounds</string>
    </property>
   </action>
+  <action name="actionOverview_Mode">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Overview Mode</string>
+   </property>
+  </action>
+  <action name="actionSplit_Cluster">
+   <property name="text">
+    <string>Split Cluster</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -1814,54 +1664,6 @@
  </customwidgets>
  <resources/>
  <connections>
-  <connection>
-   <sender>pushButton</sender>
-   <signal>clicked()</signal>
-   <receiver>actionOpen</receiver>
-   <slot>trigger()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>879</x>
-     <y>60</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_save</sender>
-   <signal>clicked()</signal>
-   <receiver>actionSave</receiver>
-   <slot>trigger()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>940</x>
-     <y>60</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_import</sender>
-   <signal>clicked()</signal>
-   <receiver>actionImport_Bound</receiver>
-   <slot>trigger()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1001</x>
-     <y>60</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>pushButton_addLimit</sender>
    <signal>clicked()</signal>
@@ -2079,6 +1881,22 @@
     <hint type="sourcelabel">
      <x>735</x>
      <y>673</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_overview</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>actionOverview_Mode</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>675</x>
+     <y>60</y>
     </hint>
     <hint type="destinationlabel">
      <x>-1</x>

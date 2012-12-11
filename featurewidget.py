@@ -25,10 +25,6 @@ class ProjectionWidget(Canvas):
 
     def __init__(self, parent=None):
         self.figure = Figure()
-        self.axes = self.figure.add_subplot(111)
-        self.axes.set_title('')
-        self.axes.set_xlabel('')
-        self.axes.set_ylabel('')
         Canvas.__init__(self, self.figure)
         self.setParent(parent)
 
@@ -104,7 +100,7 @@ class ProjectionWidget(Canvas):
 
     def resetLimits(self):
         self.prof_limits_reference = None
-#        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
 
     # These are not provided as signals since there is some non trivial
     # logic the main form needs to perform first
@@ -133,19 +129,16 @@ class ProjectionWidget(Canvas):
         self.emit(SIGNAL("featureRedrawRequired()"))
 
     # Given a set of spike and cluster data, create the figure
-    def updatePlot(self, spikeset, clusters, junk, visible_checkboxes):
+    def updatePlot(self, spikeset, junk):
+        clusters = spikeset.clusters
         xdata = spikeset.featureByName(self.feature_x).data[:, self.chan_x]
         ydata = spikeset.featureByName(self.feature_y).data[:, self.chan_y]
         self.axes.hold(False)
 
-        cl_list = zip(clusters + [junk], visible_checkboxes)
-
-        #print "Updating feature plot: ", self.feature_x, self.chan_x, \
-        #        " vs ", self.feature_y, self.chan_y
-
+        cl_list = clusters + [junk]
         if self.prof_limits_reference is None:
             w = np.array([True] * spikeset.N)
-            if not junk.check.isChecked():
+            if not junk._visible:
                 w[junk.member] = False
 
             temp = ([np.min(xdata[w]), np.max(xdata[w])],
@@ -175,9 +168,8 @@ class ProjectionWidget(Canvas):
                 self.axes.hold(True)
 
             # Iterate over clusters
-            for cluster, check in cl_list:
-                #todo: fix this
-                if not check.isChecked():
+            for cluster in cl_list:
+                if not cluster._visible:
                     continue
 
                 col = map(lambda s: s / 255.0, cluster.color)
@@ -203,8 +195,7 @@ class ProjectionWidget(Canvas):
                 if self.exclusive:
                         for cluster in clusters + [junk]:
                                 w[cluster.member] = False
-            for cluster in [cluster for cluster, check
-                             in cl_list if check.isChecked()]:
+            for cluster in [cluster for cluster in cl_list if cluster._visible]:
                 w[cluster.member] = True
 
             if not np.any(w):
@@ -237,8 +228,8 @@ class ProjectionWidget(Canvas):
             # Iterate over clusters for refractory spikes
             if self.refractory:
                 self.axes.hold(True)
-                for cluster, check in cl_list:
-                    if not check.isChecked():
+                for cluster in cl_list:
+                    if not cluster._visible:
                         continue
 
                     # Plot refractory spikes
@@ -254,12 +245,10 @@ class ProjectionWidget(Canvas):
         for tick in self.axes.yaxis.get_major_ticks():
             tick.set_pad(-20)
             tick.label2.set_horizontalalignment('left')
-#        self.axes.set_xticks([])
-#        self.axes.set_yticks([])
 
         # Now draw the boundaries
-        for cluster, check in cl_list:
-            if not check.isChecked():
+        for cluster in cl_list:
+            if not cluster._visible:
                 continue
 
             # Limit boundaries with solid line

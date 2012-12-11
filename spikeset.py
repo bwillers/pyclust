@@ -72,7 +72,6 @@ class Spikeset:
         if loadhash == hashkey:
             print "Spikeset hashes match, loading features info."
             self.calculateFeatures(pickle.load(f))
-            self.features.append(features.Feature_Barycenter(self))
         else:
             print "Hashes don't match, features are from a different dataset."
 
@@ -91,7 +90,6 @@ class Spikeset:
         self.features.append(features.Feature_Time(self))
         self.features.append(features.Feature_Valley(self))
         self.features.append(features.Feature_Trough(self))
-        #self.features.append(features.Feature_CoM(self))
 
         if self.use_pca:
             self.features.append(
@@ -128,6 +126,7 @@ class Spikeset:
                 c = unique_colors.newcolor(color_list)
                 new_cluster.color = tuple(map(lambda x: int(x * 255), c))
         self.clusters.append(new_cluster)
+        new_cluster._visible = True
         return new_cluster
 
     def importBounds(self, filename):
@@ -147,15 +146,14 @@ class Spikeset:
             print "Founds", len(dumped['clusters']),
             print "bounds to import, creating clusters."
             for cluster in dumped['clusters']:
-                clust = Cluster(self)
-                clust.color = cluster['color']
+                clust = self.addCluster(color=cluster['color'])
                 clust.bounds = cluster['bounds']
                 clust.wave_bounds = cluster['wave_bounds']
                 clust.add_bounds = cluster['add_bounds']
                 clust.del_bounds = cluster['del_bounds']
-                clust.membership_model = cluster['mmodel']
+                #clust.membership_model = cluster['mmodel']
+                clust.member_base = cluster['member_base']
                 clust.calculateMembership(self)
-                self.clusters.append(clust)
 
         else:
             print "Saved bounds version 0.0.0"
@@ -169,14 +167,12 @@ class Spikeset:
             print "bounds to import, creating clusters."
             for (col, bound, wave_bound, add_bound, del_bound) \
                     in saved_bounds:
-                clust = Cluster(self)
-                clust.color = col
+                clust = self.addCluster(color=col)
                 clust.bounds = bound
                 clust.wave_bounds = wave_bound
                 clust.add_bounds = add_bound
                 clust.del_bounds = del_bound
                 clust.calculateMembership(self)
-                self.clusters.append(clust)
 
         infile.close()
 
@@ -232,9 +228,10 @@ class Spikeset:
                 cluster = self.addCluster(
                     color=tuple([int(a * 255) for a in colors[i - 1]]))
 
-                cluster.membership_model.append(
-                        mmodel.PrecalculatedLabelsMembershipModel(
-                            labels, [i]))
+                cluster.member_base = labels == i
+#                cluster.membership_model.append(
+#                        mmodel.PrecalculatedLabelsMembershipModel(
+#                            labels, [i]))
                 cluster.calculateMembership(self)
             print "."
 
@@ -249,7 +246,7 @@ class Cluster:
         self.wave_bounds = []
         self.add_bounds = []
         self.del_bounds = []
-        self.membership_model = []
+        self.member_base = []
         self.isi = []
         self.refractory = np.array([False] * spikeset.N)
         self.stats = {}
@@ -292,28 +289,30 @@ class Cluster:
 
     def calculateMembership(self, spikeset):
         self.mahal_valid = False
-        if (not self.bounds) and (not self.add_bounds) and \
-                (not self.membership_model):
+        if (self.bounds == []) and (self.add_bounds == []) and \
+                (self.member_base == []):
             self.member = np.array([False] * spikeset.N)
             self.isi = []
             self.refractory = np.array([False] * spikeset.N)
             return
 
-        self.member = np.array([False] * spikeset.N)
-        if self.add_bounds:
-            # if we have additive boundaries, use those
+        # If we have no member base, its all or add bounds
+        if self.member_base == []:
+            if self.add_bounds != []:
+                self.member = np.zeros((spikeset.N), dtype=np.bool)
+                for bound in self.add_bounds:
+                    self.member = np.logical_or(self.member,
+                        bound.withinBoundary(spikeset))
+            else:
+                self.member = np.ones((spikeset.N), dtype=np.bool)
+        # If we have a member base, start there then add add bounds
+        else:
+            self.member = np.copy(self.member_base)
             for bound in self.add_bounds:
                 self.member = np.logical_or(self.member,
                     bound.withinBoundary(spikeset))
 
-        elif self.membership_model:
-            for model in self.membership_model:
-                self.member = np.logical_or(self.member,
-                    model.calculateMembership(spikeset))
-        else:
-            self.member = np.array([True] * spikeset.N)
-
-        # start with everything and cut it down
+        # now cut down the start
         for bound in self.bounds:
             w = self.member
             self.member[w] = np.logical_and(self.member[w],
@@ -328,7 +327,6 @@ class Cluster:
         # calculate mean waveform
         self.wv_mean = np.mean(spikeset.spikes[self.member, :, :], axis=0)
         self.wv_std = np.std(spikeset.spikes[self.member, :, :], axis=0)
-
 
         t = spikeset.time[self.member]
         self.refr_period = 1.7
@@ -423,8 +421,8 @@ class Cluster:
         # Work on this as a separate tool, too slow every click
         # Compute mahal distance for all waveforms in cluster
         try:
-#            temp = np.concatenate([spikeset.spikes[self.member, :, i] for i in
-#                range(np.size(spikeset.spikes, 2))], axis=1)
+            #temp = np.concatenate([spikeset.spikes[self.member, :, i] for i in
+            #range(np.size(spikeset.spikes, 2))], axis=1)
             temp = spikeset.featureByName('Peak').data[self.member, :]
             cvi = np.linalg.inv(np.cov(np.transpose(temp)))
             u = temp - np.mean(temp, axis=0)
@@ -544,8 +542,8 @@ class Cluster:
 
             # Choose the best projection
             ind = np.argmax(fitness[:, 0])
-#            print "Creating boundary on", fname, projs[ind][0], \
-#                    "vs.", fname, projs[ind][1]
+            #print "Creating boundary on", fname, projs[ind][0], \
+            #       "vs.", fname, projs[ind][1]
             bound = boundaries.BoundaryEllipse2D((fname, fname),
                     (projs[ind][0], projs[ind][1]), ellipses[ind][0],
                     ellipses[ind][1], ellipses[ind][2])

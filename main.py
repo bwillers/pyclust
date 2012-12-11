@@ -7,7 +7,6 @@ Created on Thu Mar 29 23:43:03 2012
 
 #!/usr/bin/python -d
 
-
 from PyQt4 import QtCore, QtGui
 
 import numpy as np
@@ -15,6 +14,8 @@ import scipy.io as sio
 import scipy.stats
 import scipy.signal
 import matplotlib as mpl
+import sklearn.mixture as mixture
+import sklearn.cluster
 mpl.use('Qt4Agg')
 
 import pickle
@@ -24,14 +25,14 @@ import time
 
 
 from gui import Ui_MainWindow
-from gui_sessiontracker import Ui_SessionTrackerDialog
 
 import spikeset
 import spikeset_io
 import featurewidget
+import multiplotwidget
 import boundaries
+import features
 import mmodel
-
 
 def xcorr_ts(t1, t2, demean=True, normed=True, binsize=2, maxlag=None):
     """Computes the xcorr of spiketrains times t1 and t2. Units assumed ms."""
@@ -63,152 +64,6 @@ def xcorr(x1, x2, demean=True, normed=True):
     return c
 
 
-class PyClustSessionTrackerDialog(QtGui.QDialog):
-
-    def __del__(self):
-        print "Session Tracker Dialog being destroy"
-
-    def __init__(self, spikeset_ref, cluster_ref,
-            spikeset_comp, cluster_comp, parent=None):
-        QtGui.QDialog.__init__(self, parent)
-
-        self.spikeset = spikeset_ref
-        self.clusters = cluster_ref
-
-        self.spikeset_comp = spikeset_comp
-        self.clusters_comp = cluster_comp
-
-        self.p1 = spikeset_ref.featureByName('Peak').data
-        self.p2 = spikeset_comp.featureByName('Peak').data
-
-        self.step_r = 0
-        self.matches = [-2] * len(self.clusters)
-
-        self.ui = Ui_SessionTrackerDialog()
-        self.ui.setupUi(self)
-
-        self.figure = self.ui.mplwidget.figure
-        self.figure.clear()
-        self.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
-            bottom=0, top=1, left=0.0, right=1)
-
-        self.member_ref = np.any(np.column_stack(tuple([cluster.member
-            for cluster in self.clusters])), axis=1)
-        self.member_comp = np.any(np.column_stack(tuple([cluster.member
-            for cluster in self.clusters_comp])), axis=1)
-
-        self.updatePlot()
-        self.group = QtGui.QButtonGroup(self)
-        self.group.setExclusive(True)
-        self.radio = [self.ui.radioButton_nomatch]
-        self.group.addButton(self.radio[0])
-        self.group.setId(self.radio[0], -2)
-
-        # Create the radio buttons
-        layout = self.ui.frame.layout()
-        for i, clust in enumerate(self.clusters_comp):
-            radio = QtGui.QRadioButton()
-            radio.setText("Cluster %d" % i)
-            layout.insertWidget(i + 1, radio)
-            self.radio.append(radio)
-            self.group.addButton(radio)
-            self.group.setId(radio, i)
-
-        self.radio[0].setChecked(True)
-        QtCore.QObject.connect(self.group, QtCore.SIGNAL("buttonClicked(int)"),
-                self.updatePlot)
-
-    def getMatches(self):
-        return ((self.spikeset.subject, self.spikeset_comp.subject),
-                (self.spikeset.session, self.spikeset_comp.session),
-                self.matches)
-
-    def accept(self):
-        self.matches[self.step_r] = self.group.checkedId()
-        for radio in self.radio[1:]:
-            radio.setEnabled(not self.group.id(radio) in self.matches)
-
-        if self.step_r + 1 == len(self.clusters):
-            QtGui.QDialog.accept(self)
-        else:
-            self.step_r += 1
-            self.radio[0].setChecked(True)
-            self.updatePlot()
-
-    def updatePlot(self, index=-2):
-        gcol = (0.5, 0.5, 0.5)
-        dgcol = (0.3, 0.3, 0.3)
-        clust1 = self.clusters[self.step_r]
-        ccol = map(lambda s: s / 255.0, clust1.color)
-        if index != -2:
-            clust2 = self.clusters_comp[index]
-
-        counter = 0
-        for proj_x in range(0, 4):
-            for proj_y in range(proj_x + 1, 4):
-                counter = counter + 1
-                ax = self.figure.add_subplot(2, 3, counter)
-                ax.cla()
-                # Plot things that belong to no cluster
-                ax.plot(self.p1[np.logical_not(self.member_ref), proj_x],
-                        self.p1[np.logical_not(self.member_ref), proj_y],
-                                 marker='.', markersize=1,
-                                 markerfacecolor=gcol,
-                                 markeredgecolor=gcol,
-                                 linestyle='None', zorder=0)
-                ax.plot(self.p2[np.logical_not(self.member_comp), proj_x],
-                        self.p2[np.logical_not(self.member_comp), proj_y],
-                                 marker='.', markersize=1,
-                                 markerfacecolor=gcol,
-                                 markeredgecolor=gcol,
-                                 linestyle='None', zorder=0)
-
-                # Plot things belonging to other clusters
-                w = np.logical_and(self.member_ref,
-                        np.logical_not(clust1.member))
-                ax.plot(self.p1[w, proj_x], self.p1[w, proj_y],
-                                 marker='.', markersize=1,
-                                 markerfacecolor=dgcol,
-                                 markeredgecolor=dgcol,
-                                 linestyle='None', zorder=1)
-                if index != -2:
-                    w = np.logical_and(self.member_comp,
-                            np.logical_not(clust2.member))
-                else:
-                    w = self.member_comp
-                ax.plot(self.p2[w, proj_x], self.p2[w, proj_y],
-                                 marker='.', markersize=1,
-                                 markerfacecolor=dgcol,
-                                 markeredgecolor=dgcol,
-                                 linestyle='None', zorder=1)
-
-                # Plot things belonging to these clusters
-                ax.plot(self.p1[clust1.member, proj_x],
-                        self.p1[clust1.member, proj_y],
-                                 marker='.', markersize=3,
-                                 markerfacecolor=ccol,
-                                 markeredgecolor=ccol,
-                                 linestyle='None', zorder=3)
-                if index != -2:
-                    ax.plot(self.p2[clust2.member, proj_x],
-                            self.p2[clust2.member, proj_y],
-                                 marker='.', markersize=3,
-                                 markerfacecolor='k',
-                                 markeredgecolor='k',
-                                 linestyle='None', zorder=3)
-
-                # Draw the boundaries
-                for bound in clust1.getBoundaries('Peak', proj_x,
-                            'Peak', proj_y):
-                    bound.draw(ax, color=ccol, linestyle='--')
-                if index != -2:
-                    for bound in clust2.getBoundaries('Peak', proj_x,
-                            'Peak', proj_y):
-                        bound.draw(ax, color='k', linestyle='-.')
-
-        self.ui.mplwidget.draw()
-
-
 class PyClustMainWindow(QtGui.QMainWindow):
 
     def switch_to_wavecutter(self):
@@ -232,7 +87,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             # dont want the backup in the list for now
             self.merge_clust.color = clust.color
             self.merge_clust.bounds = clust.bounds
-            self.merge_clust.membership_model = clust.membership_model
+            self.merge_clust.member_base = clust.member_base
             self.merge_clust.add_bounds = clust.add_bounds
             self.merge_clust.calculateMembership(self.spikeset)
 
@@ -244,6 +99,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             self.ui.comboBox_merge_c2.blockSignals(True)
             self.ui.comboBox_merge_c2.clear()
+            self.ui.comboBox_merge_c2.addItem("(Select)")
             for i in xrange(len(self.spikeset.clusters)):
                 if i == id1:
                     continue
@@ -269,7 +125,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # revert the active cluster to the original bounds
         clust = self.spikeset.clusters[self.merge_id_1]
         clust.bounds = self.merge_clust.bounds
-        clust.membership_model = self.merge_clust.membership_model
+        clust.member_base = self.merge_clust.member_base
         clust.add_bounds = clust.add_bounds
         clust.calculateMembership(self.spikeset)
         self.updateClusterDetailPlots()
@@ -281,6 +137,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
     def merge_redraw(self):
         """Redraws the merge interface, called after UI events."""
         if self.merge_clust is None:
+            return
+
+        if self.merge_id_2 is None:
+            self.ui.mplwidget_merge_wv.figure.clear()
+            self.ui.mplwidget_merge.figure.clear()
             return
 
         cf = lambda s: s / 255.0
@@ -299,23 +160,31 @@ class PyClustMainWindow(QtGui.QMainWindow):
         wv2 = wv2.T.reshape((wv2.size,))
 
         # plot the xcorr
-        self.ui.mplwidget_merge_xcorr.figure.clear()
-        ax = self.ui.mplwidget_merge_xcorr.figure.add_subplot(1, 1, 1)
+        self.ui.mplwidget_merge_wv.figure.clear()
+        ax = self.ui.mplwidget_merge_wv.figure.add_subplot(1, 3, 3)
         ax.plot(self.merge_plot_lags, self.merge_plot_xc)
         ax.set_xlim([-100, 100])
         ax.set_ylim([0, ax.get_ylim()[1]])
         ax.plot([0, 0], ax.get_ylim(), 'k--')
         ax.set_xticks([])
         ax.set_yticks([])
-        self.ui.mplwidget_merge_xcorr.draw()
 
         # Plot the waveforms
-        self.ui.mplwidget_merge_wv.figure.clear()
-        ax = self.ui.mplwidget_merge_wv.figure.add_subplot(1, 1, 1)
+        ax = self.ui.mplwidget_merge_wv.figure.add_subplot(1, 3, 1)
         ax.plot(wv1, color=col1)
         ax.plot(wv2, color=col2)
         ax.set_xticks([])
         ax.set_yticks([])
+
+        # draw the linear discriminant
+        ax = self.ui.mplwidget_merge_wv.figure.add_subplot(1, 3, 2)
+        ax.plot(self.merge_plot_discrim_bins, self.merge_plot_discrim_h1,
+               color=col1, linewidth=2)
+        ax.plot(self.merge_plot_discrim_bins, self.merge_plot_discrim_h2,
+               color=col2, linewidth=2)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
         self.ui.mplwidget_merge_wv.draw()
 
         # now draw the projections
@@ -372,10 +241,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
         """Event fires when a different cluster match is chosen for merge."""
         if index == -1:
             return
-        if index >= self.merge_id_1:
-            self.merge_id_2 = index + 1
-        else:
+        elif index == 0:
+            self.merge_id_2 = None
+            self.merge_redraw()
+            return
+        elif index - 1 >= self.merge_id_1:
             self.merge_id_2 = index
+        else:
+            self.merge_id_2 = index - 1
 
         # Update the 'merged' membership for the details plot
         w1 = self.merge_clust.member
@@ -384,10 +257,47 @@ class PyClustMainWindow(QtGui.QMainWindow):
         clust.bounds = []
         clust.add_bounds = []
         clust.wave_bounds = []
-        labels = (w1 | w2).astype(np.int)
-        clust.membership_model = [mmodel.PrecalculatedLabelsMembershipModel(
-            labels, [1])]
+        clust.member_base = (w1 | w2)
         clust.calculateMembership(self.spikeset)
+
+        # compute the linear discrim
+        spikes1 = self.spikeset.spikes[w1, :, :]
+        spikes1 = spikes1.reshape((spikes1.shape[0], spikes1.shape[1] *
+                                    spikes1.shape[2]))
+        spikes2 = self.spikeset.spikes[w2, :, :]
+        spikes2 = spikes2.reshape((spikes2.shape[0], spikes2.shape[1] *
+                                    spikes2.shape[2]))
+        wv1 = np.mean(spikes1, axis=0)
+        wv2 = np.mean(spikes2, axis=0)
+        delta = wv1 - wv2
+        spikes1 = spikes1 - delta
+        spikes2 = spikes2 - delta
+
+        dnorm = np.dot(delta, delta)
+        proj1 = np.dot(spikes1, delta) / dnorm - 0.5
+        proj2 = np.dot(spikes2, delta) / dnorm - 0.5
+        bscale = np.max([np.max(np.abs(proj1)), np.max(np.abs(proj2))])
+        xo = np.linspace(-bscale, bscale, 100)
+        f1 = scipy.stats.gaussian_kde(proj1)
+        f2 = scipy.stats.gaussian_kde(proj2)
+        # get some bounds approximations
+        y1 = f1(xo)
+        y1 = np.cumsum(y1) / np.sum(y1)
+        y2 = f2(xo)
+        y2 = np.cumsum(y2) / np.sum(y2)
+
+        try:
+            lbound = min([np.max(xo[y1 <= 0.01]), np.max(xo[y2 <= 0.01])])
+        except ValueError:
+            lbound = xo[0]
+        try:
+            rbound = max([np.min(xo[y1 >= 0.99]), np.min(xo[y2 >= 0.99])])
+        except ValueError:
+            rbound = xo[-1]
+        xo = np.linspace(lbound, rbound, 100)
+        self.merge_plot_discrim_bins = xo
+        self.merge_plot_discrim_h1 = f1(xo)
+        self.merge_plot_discrim_h2 = f2(xo)
 
         # compute the xcorr
         t1 = self.spikeset.time[w1]
@@ -397,6 +307,31 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.merge_redraw()
         self.updateClusterDetailPlots()
+
+    @QtCore.pyqtSlot('bool')
+    def on_actionSplit_Cluster_triggered(self, checked=None):
+        n, ok = QtGui.QInputDialog.getInt(self, 'Split clusters',
+                'Split into how many clusters?', 2)
+        if ok:
+            print 'Splitting cluster into', n, 'components using wPCA/GMM'
+            clust = self.activeClusterRadioButton().cluster_reference
+            gmm = mixture.GMM(n_components=n, covariance_type='full')
+            spikes = self.spikeset.spikes[clust.member, :, :]
+            spikes = spikes.reshape((spikes.shape[0], spikes.shape[1] *
+                                      spikes.shape[2]))
+            input_data, _, _ = features.PCA(spikes, 4)
+            gmm.fit(input_data)
+
+            labels = gmm.predict(input_data)
+            mlabels = np.zeros((self.spikeset.N,))
+            mlabels[clust.member] = labels + 1
+
+            for i in range(n):
+                new_clust = self.spikeset.addCluster()
+                new_clust.member_base = mlabels == i+1
+                new_clust.calculateMembership(self.spikeset)
+
+            self.delete_cluster(clust)
 
     @QtCore.pyqtSlot('bool')
     def on_actionAutotrim_triggered(self, checked=None):
@@ -427,6 +362,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot('bool')
     def on_actionRefractory_triggered(self, checked=None):
         self.mp_proj.setRefractory(checked)
+        self.mp_proj_multi.setRefractory(checked)
         self.ui.checkBox_refractory.blockSignals(True)
         self.ui.checkBox_merge_refractory.blockSignals(True)
         self.ui.checkBox_refractory.setChecked(checked)
@@ -436,9 +372,42 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.merge_redraw()
 
     @QtCore.pyqtSlot('bool')
+    def on_actionOverview_Mode_triggered(self, checked=None):
+        self.ui.checkBox_overview.blockSignals(True)
+        self.ui.checkBox_overview.setChecked(checked)
+        self.ui.checkBox_overview.blockSignals(False)
+
+        self._overviewmode = checked
+        # rather than typing not checked all the time lets just negate it
+        checked = not checked
+        self.mp_proj.blockSignals(self._overviewmode)
+        self.mp_proj_multi.blockSignals(not self._overviewmode)
+        self.mp_proj_multi.setVisible(self._overviewmode)
+        self.mp_proj.setVisible(not self._overviewmode)
+
+        # Disable the add limit/channel dialogs
+        self.ui.pushButton_next_projection.setEnabled(checked)
+        self.ui.pushButton_previous_projection.setEnabled(checked)
+        self.ui.comboBox_feature_y_chan.setEnabled(checked)
+        self.ui.comboBox_feature_x_chan.setEnabled(checked)
+        self.ui.comboBox_feature_y.setEnabled(checked)
+
+        self.ui.pushButton_addLimit.setEnabled(checked)
+        self.ui.actionAdd_Limit.setEnabled(checked)
+
+        self.ui.pushButton_deleteLimit.setEnabled(checked)
+        self.ui.actionDelete_Limit.setEnabled(checked)
+
+        self.ui.checkBox_ellipse.setEnabled(checked)
+        self.ui.actionEliptical.setEnabled(checked)
+
+        self.updateFeaturePlot()
+
+    @QtCore.pyqtSlot('bool')
     def on_actionScatter_triggered(self, checked=None):
         if checked:
             self.mp_proj.setPlotType(-2)
+            self.mp_proj_multi.setPlotType(-2)
             self.ui.radioButton_scatter.blockSignals(True)
             self.ui.radioButton_scatter.setChecked(True)
             self.ui.radioButton_scatter.blockSignals(False)
@@ -508,51 +477,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateClusterDetailPlots()
         self.ui.stackedWidget.setCurrentIndex(0)
 
-    def switch_to_sessiontracker(self):
-        #Prompt for a filename for the comparison spikeset
-        fname = QtGui.QFileDialog.getOpenFileName(self,
-            'Open ntt file',
-            filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
-
-        if not fname:
-            return
-
-        (root, ext) = os.path.splitext(str(fname))
-        boundfilename = root + os.extsep + 'bounds'
-        if not os.path.exists(boundfilename):
-            # Should probably display a message at some point
-            return
-
-        print "Loading comparison spikeset"
-        infile = open(boundfilename, 'rb')
-        special = pickle.load(infile)
-        #compmatches = pickle.load(infile)
-        saved_bounds = pickle.load(infile)
-        infile.close()
-
-        print "Loading comparison clusters"
-        ss_comp = spikeset_io.loadSpikeset(str(fname))
-        ss_comp.calculateFeatures(special)
-
-        clusters_comp = []
-
-        for (col, bound, wave_bound, add_bound, del_bound) in saved_bounds:
-            clust = spikeset.Cluster(ss_comp)
-            clust.bounds = bound
-            clust.wave_bounds = wave_bound
-            clust.add_bounds = add_bound
-            clust.del_bounds = del_bound
-            clust.calculateMembership(ss_comp)
-            clusters_comp.append(clust)
-
-        dialog = PyClustSessionTrackerDialog(self.spikeset,
-                    self.spikeset.clusters, ss_comp, clusters_comp)
-        dialog.showMaximized()
-        if dialog.exec_():
-            matches = dialog.getMatches()
-            if not all(x == -2 for x in matches):
-                self.matches = matches
-            print "Matches", self.matches
 
     def __init__(self, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
@@ -563,7 +487,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # There is no spikeset or feature set on load
         self.spikeset = None
         self.current_feature = None
-        self.matches = None
         self.current_filename = None
         self.junk_cluster = None
         self.merge_clust = None
@@ -583,9 +506,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.agroup_scatter.addAction(self.ui.actionLog_Density)
 
         # Connect the handlers
-        self.ui.pushButton_identify.clicked.connect(
-                self.switch_to_sessiontracker)
-
         self.ui.checkBox_merge_background.clicked.connect(
                 self.merge_redraw)
 
@@ -656,6 +576,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
             lambda x: self.updateWavecutterPlot() if x == 0
                 else self.updateOutlierPlot())
 
+        self.connect(self.ui.actionQuit, QtCore.SIGNAL("triggered()"),
+                     self.close)
+
         self.ui.pushButton_autotrim_apply.clicked.connect(self.autotrim_apply)
         self.ui.pushButton_autotrim_cancel.clicked.connect(
             self.autotrim_cancel)
@@ -688,8 +611,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.checkBox_show_unclustered = QtGui.QCheckBox(
                 self.labels_container)
         self.ui.checkBox_show_unclustered.setChecked(True)
-        QtCore.QObject.connect(self.ui.checkBox_show_unclustered,
-            QtCore.SIGNAL("stateChanged(int)"), self.updateFeaturePlot)
         hlayout.addWidget(self.ui.checkBox_show_unclustered)
 
         hlayout.addWidget(QtGui.QLabel('Unclustered',
@@ -705,28 +626,43 @@ class PyClustMainWindow(QtGui.QMainWindow):
         layout.insertLayout(0, hlayout)
 
         # Create the projection widget
-        self.ui.verticalLayout_3.removeWidget(self.ui.mplwidget_projection)
         self.mp_proj = featurewidget.ProjectionWidget()
         self.mp_proj.setAutoFillBackground(True)
         self.mp_proj.setObjectName("mplwidget_projection")
         self.ui.verticalLayout_3.addWidget(self.mp_proj)
 
+        self.mp_proj_multi = multiplotwidget.MultiplotWidget()
+        self.mp_proj_multi.setAutoFillBackground(True)
+        self.mp_proj_multi.setObjectName("mplwidget_projection_multi")
+        self.ui.verticalLayout_3.addWidget(self.mp_proj_multi)
+        self._overviewmode = False
+        self.mp_proj_multi.setVisible(False)
+
         # Connect the relevant signals/slots
         QtCore.QObject.connect(self.mp_proj,
+                QtCore.SIGNAL("featureRedrawRequired()"),
+                self.updateFeaturePlot)
+        QtCore.QObject.connect(self.mp_proj_multi,
                 QtCore.SIGNAL("featureRedrawRequired()"),
                 self.updateFeaturePlot)
 
         # Signals for unclustered show checkbox
         self.ui.checkBox_show_unclustered.stateChanged.connect(
                 self.mp_proj.setShowUnclustered)
+        self.ui.checkBox_show_unclustered.stateChanged.connect(
+                self.mp_proj_multi.setShowUnclustered)
 
         # Signals for unclustered exclusive checkbox
         self.ui.checkBox_show_unclustered_exclusive.stateChanged.connect(
                 self.mp_proj.setUnclusteredExclusive)
+        self.ui.checkBox_show_unclustered_exclusive.stateChanged.connect(
+                self.mp_proj_multi.setUnclusteredExclusive)
 
         # Signals for marker size
         self.ui.spinBox_markerSize.valueChanged.connect(
                 self.mp_proj.setMarkerSize)
+        self.ui.spinBox_markerSize.valueChanged.connect(
+                self.mp_proj_multi.setMarkerSize)
 
         # Signal for polygon boundary drawn
         QtCore.QObject.connect(self.mp_proj,
@@ -771,9 +707,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.ui.mplwidget_merge_wv.figure.clear()
         self.ui.mplwidget_merge_wv.figure.set_facecolor(bgcolor)
-
-        self.ui.mplwidget_merge_xcorr.figure.clear()
-        self.ui.mplwidget_merge_xcorr.figure.set_facecolor(bgcolor)
 
         self.wave_limit_mode = False
         self.mp_wavecutter.mpl_connect('button_press_event',
@@ -847,8 +780,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 left=0, right=1, hspace=0.01, wspace=0.01)
         self.ui.mplwidget_merge_wv.figure.subplots_adjust(bottom=0, top=1,
                 left=0, right=1, hspace=0.01, wspace=0.01)
-        self.ui.mplwidget_merge_xcorr.figure.subplots_adjust(bottom=0, top=1,
-                left=0, right=1, hspace=0.01, wspace=0.01)
 
         # Clear the stats labels
         self.ui.label_spike_count.setText('')
@@ -914,6 +845,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             ui[3].blockSignals(True)
             ui[3].setChecked(not hidden)
+            ui[3].cluster_reference._visible = not hidden
             ui[3].blockSignals(False)
 
             if hidden:
@@ -922,11 +854,19 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.checkBox_junk.setChecked(False)
                 self.checkBox_junk.blockSignals(False)
 
-        #self.ui.checkBox_show_unclustered.blockSignals(True)
-        self.ui.checkBox_show_unclustered.setChecked(not hidden)
-        #self.ui.checkBox_show_unclustered.blockSignals(False)
+        if self._overviewmode:
+            self.mp_proj_multi.blockSignals(True)
+        else:
+            self.mp_proj.blockSignals(True)
 
-        #self.updateFeaturePlot()
+        self.ui.checkBox_show_unclustered.setChecked(not hidden)
+
+        if self._overviewmode:
+            self.mp_proj_multi.blockSignals(False)
+        else:
+            self.mp_proj.blockSignals(False)
+
+        self.updateFeaturePlot()
 
     # When we switch clusters, correctly enabled/disable cluster
     # checkboxes, and tell the projection widget to stop drawing
@@ -945,12 +885,19 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
     # Add a new cluster by generating a color, creating GUI elements, etc.
 
+    def cluster_checkbox_check_event(self, state):
+        """Called each time a cluster visible checkbox state changes."""
+        checkbox = self.sender()
+        checkbox.cluster_reference._visible = checkbox.isChecked()
+        self.updateFeaturePlot()
+
     def update_ui_cluster_buttons(self):
         # remove all the UI buttons for clusters
         for ui_container in self.cluster_ui_buttons:
             radio = ui_container[0]
             layout = ui_container[1]
             cbut = ui_container[2]
+            check = ui_container[3]
 
             self.buttonGroup_cluster.removeButton(radio)
             self.labels_container.layout().removeItem(layout)
@@ -961,6 +908,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             radio.cluster_reference = None
             cbut.cluster_reference = None
+            check.cluster_reference = None
         self.cluster_ui_buttons = []
 
         # Now add buttons for each cluster
@@ -969,9 +917,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
             hlayout = QtGui.QHBoxLayout()
 
             check = QtGui.QCheckBox()
-            check.setChecked(True)
+            if i != len(self.spikeset.clusters) - 1:
+                check.setChecked(new_cluster._visible)
+            else:
+                check.setChecked(True)
+                new_cluster._visible = True
             QtCore.QObject.connect(check, QtCore.SIGNAL("stateChanged(int)"),
-                self.updateFeaturePlot)
+                            self.cluster_checkbox_check_event)
 
             radio = QtGui.QRadioButton()
             radio.setChecked(True)
@@ -1004,6 +956,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             # so we can access them when we need to
             cbut.cluster_reference = new_cluster
             radio.cluster_reference = new_cluster
+            check.cluster_reference = new_cluster
 
             self.cluster_ui_buttons.append((radio, hlayout, cbut, check))
 
@@ -1017,19 +970,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
                     self.activeClusterRadioButton() == self.radioButton_junk):
                 return
             cluster = self.activeClusterRadioButton().cluster_reference
-
-        if self.matches is not None:
-            retval = QtGui.QMessageBox.question(self, "Warning",
-                    "Deleting clusters will invalidate (i.e. delete) "
-                    "session tracking data. Continue?",
-                    QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
-                    QtGui.QMessageBox.No)
-            print retval
-            if retval != QtGui.QMessageBox.Yes:
-                return
-            else:
-                print "Clearing cluster matches"
-                self.matches = None
 
         self.spikeset.clusters.remove(cluster)
         self.update_ui_cluster_buttons()
@@ -1104,7 +1044,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot('bool')
     def on_actionAdd_Cluster_triggered(self, checked=None):
-        self.spikeset.addCluster()
+        clust = self.spikeset.addCluster()
+        clust._visible = True
         self.update_ui_cluster_buttons()
         self.update_active_cluster()
         self.unsaved = True
@@ -1161,6 +1102,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.ui.comboBox_feature_y.currentText())
         self.mp_proj.setChanY(int(
                 self.ui.comboBox_feature_y_chan.currentText()) - 1)
+        # and the multi plot widget
+        self.mp_proj_multi.setFeature(current_x)
 
         # Remove the blocks
         self.mp_proj.blockSignals(False)
@@ -1192,7 +1135,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             current = len(valid_y_chans) - 1
         else:
             current = 0
-        print current
 
         # y_chans is None if it should be all channels for a different
         # feature type, since we have no way of knowing how many there
@@ -1331,7 +1273,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if reply == QtGui.QMessageBox.No:
                 pass
 
-        self.matches = None
         print ''
         print 'Trying to load file: ', fname
         print 'Clearing current clusters'
@@ -1342,6 +1283,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.spikeset = None
         self.current_feature = None
         self.mp_proj.resetLimits()
+        self.mp_proj_multi.resetLimits()
         self.junk_cluster = None
         self.current_filename = None
         self.limit_mode = False
@@ -1425,7 +1367,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.spikeset.importAckk(ackkfilename)
 
         # Set the combo boxes to the current feature for now
-        self.mp_proj.resetLimits()
         self.ui.comboBox_feature_x.clear()
         for name in self.spikeset.featureNames():
             self.ui.comboBox_feature_x.addItem(name)
@@ -1450,12 +1391,16 @@ class PyClustMainWindow(QtGui.QMainWindow):
         if not self.spikeset or not self.junk_cluster:
             return
 
+        self.junk_cluster._visible = self.junk_cluster.check.isChecked()
         check_boxes = [ui[3] for ui in self.cluster_ui_buttons] + [
                 self.junk_cluster.check]
-        self.mp_proj.updatePlot(self.spikeset,
-                self.spikeset.clusters, self.junk_cluster, check_boxes)
 
-        self.mp_proj.draw()
+        if self._overviewmode:
+            self.mp_proj_multi.updatePlot(self.spikeset, self.junk_cluster)
+            self.mp_proj_multi.draw()
+        else:
+            self.mp_proj.updatePlot(self.spikeset, self.junk_cluster)
+            self.mp_proj.draw()
 
     def updateClusterDetailPlots(self):
         if self.spikeset is None:
@@ -1585,13 +1530,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
         if versionstr == "0.0.1":
             dumping = dict()
             dumping['feature_special'] = self.spikeset.feature_special
-            dumping['matches'] = self.matches
 
             sb = [{'color': cluster.color, 'bounds': cluster.bounds,
                 'wave_bounds': cluster.wave_bounds,
                 'add_bounds':  cluster.add_bounds,
                 'del_bounds': cluster.del_bounds,
-                'mmodel': cluster.membership_model}
+                'member_base': cluster.member_base}
                         for cluster in self.spikeset.clusters]
             dumping['clusters'] = sb
 
@@ -1600,11 +1544,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
         else:
             # save special info about the features, such as PCA coeffs
             pickle.dump(self.spikeset.feature_special, outfile)
-            pickle.dump(self.matches, outfile)
+            #pickle.dump(self.matches, outfile)
+            pickle.dump(None)
 
             save_bounds = [(cluster.color, cluster.bounds, cluster.wave_bounds,
                 cluster.add_bounds, cluster.del_bounds,
-                cluster.membership_model)
+                cluster.member_base)
                 for cluster in self.spikeset.clusters]
 
             pickle.dump(save_bounds, outfile)
@@ -1624,10 +1569,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             'spike_time': self.spikeset.time,
             'subject': self.spikeset.subject,
             'session': self.spikeset.session}
-            #        if self.matches is not None:
-            #            save_data['match_subject'] = self.matches[0][1]
-            #            save_data['match_session'] = self.matches[1][1]
-            #            save_data['matches'] = self.matches[2]
 
         for key in cluster_stats[0].keys():
             save_data[key] = [stat[key] for stat in cluster_stats]
@@ -1660,15 +1601,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot('bool')
     def on_actionCopy_Cluster_triggered(self, checked=None):
         if self.activeClusterRadioButton():
-            #self.redrawing_details = True
             backup = self.activeClusterRadioButton().cluster_reference
 
             clust = self.spikeset.addCluster()
             clust.bounds = backup.bounds
-            clust.membership_model = backup.membership_model
+            clust.member_base = backup.member_base
             clust.add_bounds = backup.add_bounds
             clust.calculateMembership(self.spikeset)
-            #self.redrawing_details = False
 
             self.update_ui_cluster_buttons()
             self.updateClusterDetailPlots()
@@ -1898,5 +1837,4 @@ if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     myapp = PyClustMainWindow()
     myapp.show()
-    #myapp.load_ntt('Sample2.ntt')
     sys.exit(app.exec_())
