@@ -229,11 +229,9 @@ class Spikeset:
                     color=tuple([int(a * 255) for a in colors[i - 1]]))
 
                 cluster.member_base = labels == i
-#                cluster.membership_model.append(
-#                        mmodel.PrecalculatedLabelsMembershipModel(
-#                            labels, [i]))
                 cluster.calculateMembership(self)
             print "."
+        pass
 
 
 # Clusters have a color, a set of boundaries and some calculation functions
@@ -324,10 +322,6 @@ class Cluster:
                 spikeset.spikes[:, sample, chan] <= upper_bound)
             self.member = np.logical_and(self.member, w)
 
-        # calculate mean waveform
-        self.wv_mean = np.mean(spikeset.spikes[self.member, :, :], axis=0)
-        self.wv_std = np.std(spikeset.spikes[self.member, :, :], axis=0)
-
         t = spikeset.time[self.member]
         self.refr_period = 1.7
         self.burst_period = 20
@@ -357,7 +351,15 @@ class Cluster:
             self.stats['isolation'] = np.NAN
             self.stats['refr_frac'] = np.NAN
             self.stats['com'] = np.NAN
+            self.wv_mean = np.zeros((spikeset.spikes.shape[1],
+                                     spikeset.spikes.shape[2]))
+            self.wv_std = np.zeros((spikeset.spikes.shape[1],
+                                     spikeset.spikes.shape[2]))
         else:
+            # calculate mean waveform
+            self.wv_mean = np.mean(spikeset.spikes[self.member, :, :], axis=0)
+            self.wv_std = np.std(spikeset.spikes[self.member, :, :], axis=0)
+
             # work out a mean waveform
             u_wv = np.mean(spikeset.spikes[self.member, :, :], axis=0)
             u_wv_2 = u_wv * u_wv

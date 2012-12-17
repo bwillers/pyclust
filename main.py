@@ -16,7 +16,6 @@ import scipy.signal
 import matplotlib as mpl
 import sklearn.mixture as mixture
 import sklearn.cluster
-mpl.use('Qt4Agg')
 
 import pickle
 import os
@@ -66,7 +65,8 @@ def xcorr(x1, x2, demean=True, normed=True):
 
 class PyClustMainWindow(QtGui.QMainWindow):
 
-    def switch_to_wavecutter(self):
+    @QtCore.pyqtSlot()
+    def on_actionWaveform_Cutter_triggered(self):
         self.ui.stackedWidget.setCurrentIndex(1)
         self.updateWavecutterPlot()
 
@@ -74,12 +74,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.stackedWidget.setCurrentIndex(0)
         self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionMerge_Clusters_triggered(self, checked=None):
+    @QtCore.pyqtSlot()
+    def on_actionMerge_Clusters_triggered(self):
         active = self.activeClusterRadioButton()
         if active and active.cluster_reference != self.junk_cluster:
             # get the current cluster 'number'
-
             clust = active.cluster_reference
 
             # create a backup cluster to revert to if we cancel
@@ -109,11 +108,56 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.stackedWidget.setCurrentIndex(3)
             self.merge_cluster_choice_changed(0)
 
+    class CommandMergeClusters(QtGui.QUndoCommand):
+        """Wraps the merge cluster logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, cl_mod, cl_rem, bounds, abounds, mbase):
+            desc = "merge cluster"
+            super(PyClustMainWindow.CommandMergeClusters, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.cl_mod = cl_mod
+            self.cl_rem = cl_rem
+            self.bounds = bounds
+            self.abounds = bounds
+            self.mbase = mbase
+            self.clm_mbase = cl_mod.member_base
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+            self.index = self.mainwindow.spikeset.clusters.index(self.cl_rem)
+            self.mainwindow.spikeset.clusters.remove(self.cl_rem)
+            self.cl_mod.bounds = []
+            self.cl_mod.add_bounds = []
+            self.cl_mod.wave_bounds = []
+            self.cl_mod.member_base = self.clm_mbase
+            self.cl_mod.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.update_ui_cluster_buttons(self.cl_mod)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+            self.cl_mod.bounds = self.bounds
+            self.cl_mod.add_bounds = self.abounds
+            self.cl_mod.member_base = self.mbase
+            self.cl_mod.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.spikeset.clusters.insert(self.index, self.cl_rem)
+            self.mainwindow.update_ui_cluster_buttons(self.cl_mod)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+
     def merge_apply(self):
         """Keep the merge boundaries, and delete other cluster."""
         # if we've decided to apply the merge, should remove the other cluster
         self.ui.stackedWidget.setCurrentIndex(0)
-        self.delete_cluster(self.spikeset.clusters[self.merge_id_2])
+        command = self.CommandMergeClusters(self,
+                        self.spikeset.clusters[self.merge_id_1],
+                        self.spikeset.clusters[self.merge_id_2],
+                        self.merge_clust.bounds,
+                        self.merge_clust.add_bounds,
+                        self.merge_clust.member_base)
+        self.undoStack.push(command)
 
         self.merge_clust = None
         self.merge_id_1 = None
@@ -126,7 +170,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         clust = self.spikeset.clusters[self.merge_id_1]
         clust.bounds = self.merge_clust.bounds
         clust.member_base = self.merge_clust.member_base
-        clust.add_bounds = clust.add_bounds
+        clust.add_bounds = self.merge_clust.add_bounds
         clust.calculateMembership(self.spikeset)
         self.updateClusterDetailPlots()
 
@@ -308,8 +352,48 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.merge_redraw()
         self.updateClusterDetailPlots()
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionSplit_Cluster_triggered(self, checked=None):
+    class CommandSplitCluster(QtGui.QUndoCommand):
+        """Wraps the split cluster logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, old_cluster, labels, n):
+            desc = "split cluster"
+            super(PyClustMainWindow.CommandSplitCluster, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.old_cluster = old_cluster
+            self.index = self.mainwindow.spikeset.clusters.index(old_cluster)
+            self.labels = labels
+            self.new_clusters = {}
+            self.n = n
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+
+            for i in range(self.n):
+                new_clust = self.mainwindow.spikeset.addCluster()
+                new_clust.member_base = self.labels == i + 1
+                new_clust.calculateMembership(self.mainwindow.spikeset)
+                self.new_clusters[i] = new_clust
+
+            self.mainwindow.spikeset.clusters.remove(self.old_cluster)
+            self.mainwindow.update_ui_cluster_buttons()
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+
+            for i in range(self.n):
+                self.mainwindow.spikeset.clusters.remove(self.new_clusters[i])
+            self.mainwindow.spikeset.clusters.insert(self.index,
+                                                     self.old_cluster)
+
+            self.mainwindow.update_ui_cluster_buttons(self.old_cluster)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+
+    @QtCore.pyqtSlot()
+    def on_actionSplit_Cluster_triggered(self):
         n, ok = QtGui.QInputDialog.getInt(self, 'Split clusters',
                 'Split into how many clusters?', 2)
         if ok:
@@ -326,15 +410,11 @@ class PyClustMainWindow(QtGui.QMainWindow):
             mlabels = np.zeros((self.spikeset.N,))
             mlabels[clust.member] = labels + 1
 
-            for i in range(n):
-                new_clust = self.spikeset.addCluster()
-                new_clust.member_base = mlabels == i+1
-                new_clust.calculateMembership(self.spikeset)
+            command = self.CommandSplitCluster(self, clust, mlabels, n)
+            self.undoStack.push(command)
 
-            self.delete_cluster(clust)
-
-    @QtCore.pyqtSlot('bool')
-    def on_actionAutotrim_triggered(self, checked=None):
+    @QtCore.pyqtSlot()
+    def on_actionAutotrim_triggered(self):
         active = self.activeClusterRadioButton()
         if active and active.cluster_reference != self.junk_cluster:
             clust = active.cluster_reference
@@ -459,18 +539,45 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.checkBox_ellipse.setChecked(checked)
         self.ui.checkBox_ellipse.blockSignals(False)
 
-    def autotrim_apply(self):
-        self.trim_cluster = None
 
-        self.updateFeaturePlot()
-        self.updateClusterDetailPlots()
+    class CommandAutotrimClusters(QtGui.QUndoCommand):
+        """Wraps the final autotrim logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, cluster, old_bounds):
+            desc = "autotrim cluster"
+            super(PyClustMainWindow.CommandAutotrimClusters,
+                  self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.cluster = cluster
+            self.old_bounds = old_bounds
+            self.new_bounds = cluster.bounds
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+            self.cluster.bounds = self.new_bounds
+            self.cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.updateFeaturePlot()
+            self.mainwindow.updateClusterDetailPlots()
+            self.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+            self.cluster.bounds = self.old_bounds
+            self.cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.updateFeaturePlot()
+            self.mainwindow.updateClusterDetailPlots()
+
+    def autotrim_apply(self):
+        command = self.CommandAutotrimClusters(self,
+                        self.activeClusterRadioButton().cluster_reference,
+                        self.trim_cluster.bounds)
+        self.undoStack.push(command)
+        self.trim_cluster = None
         self.ui.stackedWidget.setCurrentIndex(0)
 
     def autotrim_cancel(self):
         clust = self.activeClusterRadioButton().cluster_reference
         clust.bounds = self.trim_cluster.bounds
-        #for bound in self.trim_cluster.bounds:
-        #clust.addBoundary(bound)
         clust.calculateMembership(self.spikeset)
         self.trim_cluster = None
         self.updateFeaturePlot()
@@ -493,6 +600,19 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.limit_mode = False
         self.unsaved = False
+
+        # Create the undo stack and actions
+        self.undoStack = QtGui.QUndoStack(self)
+        self.ui.actionUndo = self.undoStack.createUndoAction(self)
+        self.ui.actionRedo = self.undoStack.createRedoAction(self)
+        self.ui.menuEdit.addAction(self.ui.actionUndo)
+        self.ui.menuEdit.addAction(self.ui.actionRedo)
+        shortcut = QtGui.QShortcut(QtGui.QKeySequence.Undo, self)
+        self.connect(shortcut, QtCore.SIGNAL("activated()"),
+                     self.ui.actionUndo.trigger)
+        shortcut = QtGui.QShortcut(QtGui.QKeySequence.Redo, self)
+        self.connect(shortcut, QtCore.SIGNAL("activated()"),
+                     self.ui.actionRedo.trigger)
 
         # Create action groups for the mnu items
         self.ui.agroup_marker = QtGui.QActionGroup(self, exclusive=True)
@@ -537,9 +657,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         QtCore.QObject.connect(self.ui.pushButton_wavecutter_done,
             QtCore.SIGNAL("clicked()"), self.switch_to_maindisplay)
-
-        QtCore.QObject.connect(self.ui.pushButton_wavecutter_start,
-            QtCore.SIGNAL("clicked()"), self.switch_to_wavecutter)
 
         QtCore.QObject.connect(self.ui.pushButton_wavecutter_redraw,
             QtCore.SIGNAL("clicked()"), self.updateWavecutterPlot)
@@ -891,7 +1008,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         checkbox.cluster_reference._visible = checkbox.isChecked()
         self.updateFeaturePlot()
 
-    def update_ui_cluster_buttons(self):
+    def update_ui_cluster_buttons(self, selected_cluster=None):
         # remove all the UI buttons for clusters
         for ui_container in self.cluster_ui_buttons:
             radio = ui_container[0]
@@ -959,10 +1076,40 @@ class PyClustMainWindow(QtGui.QMainWindow):
             check.cluster_reference = new_cluster
 
             self.cluster_ui_buttons.append((radio, hlayout, cbut, check))
+        if selected_cluster is not None:
+            for (radio, hlayout, cbut, check) in self.cluster_ui_buttons:
+                if radio.cluster_reference == selected_cluster:
+                    radio.setChecked(True)
+                    break
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionDelete_Cluster_triggered(self, checked=None):
-        self.delete_cluster()
+    class CommandDeleteCluster(QtGui.QUndoCommand):
+        """Wraps the delete cluster logic to provide undo functionality."""
+
+        def __init__(self, mainwindow):
+            desc = "Delete cluster"
+            super(PyClustMainWindow.CommandDeleteCluster, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.cluster = \
+                self.mainwindow.activeClusterRadioButton().cluster_reference
+            self.index = self.mainwindow.spikeset.clusters.index(self.cluster)
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+            self.mainwindow.delete_cluster(self.cluster)
+            self.mainwindow.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+            self.mainwindow.spikeset.clusters.insert(self.index, self.cluster)
+            self.mainwindow.update_ui_cluster_buttons(self.cluster)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.mainwindow.updateClusterDetailPlots()
+
+    @QtCore.pyqtSlot()
+    def on_actionDelete_Cluster_triggered(self):
+        command = self.CommandDeleteCluster(self)
+        self.undoStack.push(command)
 
     def delete_cluster(self, cluster=None):
         if cluster is None:
@@ -978,8 +1125,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.unsaved = True
 
     # Tell the projection widget to start drawing a boundary
-    @QtCore.pyqtSlot('bool')
-    def on_actionAdd_Limit_triggered(self, checked=None):
+    @QtCore.pyqtSlot()
+    def on_actionAdd_Limit_triggered(self):
         if not self.spikeset:
             return
 
@@ -987,46 +1134,127 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mp_proj.drawBoundary(
                     self.activeClusterRadioButton().cluster_reference.color)
 
-    # Do something with the boundary that gets returned
+    class CommandAddBoundary(QtGui.QUndoCommand):
+        """Wraps the add boundary logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, cluster, bound):
+            desc = "add boundary"
+            super(PyClustMainWindow.CommandAddBoundary, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.bound = bound
+            self.cluster = cluster
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+
+            if self.cluster != self.mainwindow.junk_cluster:
+                self.bounds_before = self.cluster.bounds
+                self.cluster.addBoundary(self.bound)
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+            else:
+                self.cluster.add_bounds.append(self.bound)
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+                self.mainwindow.mp_proj.resetLimits()
+                self.mainwindow.mp_proj_multi.resetLimits()
+
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.mainwindow.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+
+            if self.cluster != self.mainwindow.junk_cluster:
+                self.cluster.bounds = self.bounds_before
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+            else:
+                self.cluster.add_bounds.remove(self.bound)
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+                self.mainwindow.mp_proj.resetLimits()
+                self.mainwindow.mp_proj_multi.resetLimits()
+
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+
     def addBoundary(self, bound):
+        """Takes the bound returned by the plot widget and implements it."""
         if not self.activeClusterRadioButton():
             return
 
-        clust = self.activeClusterRadioButton().cluster_reference
-        if clust != self.junk_cluster:
-            clust.addBoundary(bound)
-        else:
-            print "Junk cluster updated, resetting bounds"
-            self.junk_cluster.add_bounds.append(bound)
-            self.mp_proj.resetLimits()
-
-        clust.calculateMembership(self.spikeset)
-        self.update_active_cluster()
-        self.updateFeaturePlot()
+        cluster = self.activeClusterRadioButton().cluster_reference
+        command = self.CommandAddBoundary(self, cluster, bound)
+        self.undoStack.push(command)
 
     # Delete the active cluster boundary on the current projection
-    @QtCore.pyqtSlot('bool')
-    def on_actionDelete_Limit_triggered(self, checked=None):
-        if not self.spikeset:
+
+    class CommandDeleteBoundary(QtGui.QUndoCommand):
+        """Wraps the add boundary logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, cluster, features, channels):
+            desc = "delete boundary"
+            super(PyClustMainWindow.CommandDeleteBoundary, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.cluster = cluster
+            self.features = features
+            self.channels = channels
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+
+            if self.cluster != self.mainwindow.junk_cluster:
+                self.bounds_before = self.cluster.bounds
+                self.cluster.removeBound(self.features, self.channels)
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+            else:
+                self.bounds_before = self.cluster.add_bounds
+                self.cluster.removeBound(self.features, self.channels, 'add')
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+                self.mainwindow.mp_proj.resetLimits()
+                self.mainwindow.mp_proj_multi.resetLimits()
+
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.mainwindow.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+
+            if self.cluster != self.mainwindow.junk_cluster:
+                self.cluster.bounds = self.bounds_before
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+            else:
+                self.cluster.add_bounds = self.bounds_before
+                self.cluster.calculateMembership(self.mainwindow.spikeset)
+                self.mainwindow.mp_proj.resetLimits()
+                self.mainwindow.mp_proj_multi.resetLimits()
+
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+
+    @QtCore.pyqtSlot()
+    def on_actionDelete_Limit_triggered(self):
+        if (not self.spikeset) or (not self.activeClusterRadioButton()):
             return
 
         feature_x = self.ui.comboBox_feature_x.currentText()
         feature_y = self.ui.comboBox_feature_y.currentText()
         feature_x_chan = int(self.ui.comboBox_feature_x_chan.currentText()) - 1
         feature_y_chan = int(self.ui.comboBox_feature_y_chan.currentText()) - 1
-        if self.activeClusterRadioButton():
-            cluster = self.activeClusterRadioButton().cluster_reference
 
-            if cluster != self.junk_cluster:
-                cluster.removeBound((feature_x, feature_y),
-                    (feature_x_chan, feature_y_chan))
-            else:
-                cluster.removeBound((feature_x, feature_y),
-                    (feature_x_chan, feature_y_chan), 'add')
-            cluster.calculateMembership(self.spikeset)
-            self.update_active_cluster()
-            self.updateFeaturePlot()
-            self.unsaved = True
+        cluster = self.activeClusterRadioButton().cluster_reference
+        # check if there actually is a boundary first
+        if cluster == self.junk_cluster:
+            btype = 'add'
+        else:
+            btype = 'limits'
+        bns = cluster.getBoundaries(feature_x, feature_x_chan, feature_y, \
+                                feature_y_chan, btype)
+        if bns == []:
+            return
+
+        command = self.CommandDeleteBoundary(self, cluster, \
+                (feature_x, feature_y),  (feature_x_chan, feature_y_chan))
+        self.undoStack.push(command)
 
     def button_cluster_color(self):
         color = QtGui.QColorDialog.getColor(
@@ -1042,13 +1270,45 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionAdd_Cluster_triggered(self, checked=None):
-        clust = self.spikeset.addCluster()
-        clust._visible = True
-        self.update_ui_cluster_buttons()
-        self.update_active_cluster()
-        self.unsaved = True
+    class CommandAddCluster(QtGui.QUndoCommand):
+        """Wraps the add cluster logic to provide undo functionality."""
+
+        def __init__(self, mainwindow):
+            desc = "Add cluster"
+            super(PyClustMainWindow.CommandAddCluster, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.cluster = None
+
+        def redo(self):
+            rdio = self.mainwindow.activeClusterRadioButton()
+            if rdio:
+                self.old_selection = rdio.cluster_reference
+            else:
+                self.old_selection = None
+            self.unsaved = self.mainwindow.unsaved
+
+            if self.cluster is None:
+                self.cluster = self.mainwindow.spikeset.addCluster()
+                self.cluster._visible = True
+            else:
+                self.mainwindow.spikeset.clusters.append(self.cluster)
+
+            self.mainwindow.update_ui_cluster_buttons(self.cluster)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.unsaved = True
+
+        def undo(self):
+            self.mainwindow.spikeset.clusters.remove(self.cluster)
+            self.mainwindow.unsaved = self.unsaved
+            self.mainwindow.update_ui_cluster_buttons(self.old_selection)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.mainwindow.updateClusterDetailPlots()
+
+    @QtCore.pyqtSlot()
+    def on_actionAdd_Cluster_triggered(self):
+        command = self.CommandAddCluster(self)
+        self.undoStack.push(command)
 
     def feature_x_changed(self, index):
         if index == -1:
@@ -1073,9 +1333,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         # Possible x channels
         valid_x = self.spikeset.featureByName(current_x).valid_x_features()
-        # if we have the same feature on x and y, dont allow max chan on x
-        if current_x == current_y:
-            valid_x = valid_x[:-1]
 
         self.ui.comboBox_feature_x_chan.clear()
         for i in valid_x:
@@ -1282,8 +1539,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.spikeset = None
         self.current_feature = None
-        self.mp_proj.resetLimits()
-        self.mp_proj_multi.resetLimits()
         self.junk_cluster = None
         self.current_filename = None
         self.limit_mode = False
@@ -1303,6 +1558,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
             os.path.splitext(os.path.split(fname)[1])[0])
         self.curfile = fname
 
+        self.undoStack.clear()
+
         self.t_bins = np.arange(self.spikeset.time[0],
             self.spikeset.time[-1], 60e6)
         self.t_bin_centers = ((self.t_bins[0:-1] + self.t_bins[1:]) / 2
@@ -1312,7 +1569,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.junk_cluster = spikeset.Cluster(self.spikeset)
         self.junk_cluster.color = (255, 0, 0)
         self.junk_cluster.check = self.checkBox_junk
+        self.checkBox_junk.blockSignals(True)
         self.checkBox_junk.setChecked(False)
+        self.checkBox_junk.blockSignals(False)
         self.radioButton_junk.cluster_reference = self.junk_cluster
 
         # Add some points to the junk cluster since true spikes are rarely >1mv
@@ -1346,6 +1605,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.junk_cluster.add_bounds.append(jbound)
 
         self.junk_cluster.calculateMembership(self.spikeset)
+        self.mp_proj.resetLimits()
+        self.mp_proj_multi.resetLimits()
 
         # Autoload any existing boundary files for this data set
         imported_bounds = False
@@ -1378,8 +1639,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateClusterDetailPlots()
         self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionOpen_triggered(self, checked=None):
+    @QtCore.pyqtSlot()
+    def on_actionOpen_triggered(self):
         fname = QtGui.QFileDialog.getOpenFileName(self,
             'Open ntt file',
             filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
@@ -1514,8 +1775,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.mp_drift.draw()
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionSave_triggered(self, checked=None):
+    @QtCore.pyqtSlot()
+    def on_actionSave_triggered(self):
         if not (self.current_filename and self.spikeset.clusters):
             return
 
@@ -1586,8 +1847,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.unsaved = False
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionImport_Bound_triggered(self, checked=None):
+    @QtCore.pyqtSlot()
+    def on_actionImport_Bound_triggered(self):
         filename = QtGui.QFileDialog.getOpenFileName(self,
             'Open ntt file', filter='*.bounds')
         if not filename:
@@ -1598,20 +1859,45 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.updateClusterDetailPlots()
             self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot('bool')
-    def on_actionCopy_Cluster_triggered(self, checked=None):
+    class CommandCopyClusters(QtGui.QUndoCommand):
+        """Wraps the copy cluster logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, cluster):
+            desc = "copy cluster"
+            super(PyClustMainWindow.CommandCopyClusters, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.cluster = cluster
+            self.new_cluster = None
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+            if self.new_cluster:
+                self.mainwindow.spikeset.clusters.append(self.new_cluster)
+            else:
+                self.new_cluster = self.mainwindow.spikeset.addCluster()
+                self.new_cluster.bounds = self.cluster.bounds
+                self.new_cluster.add_bounds = self.cluster.add_bounds
+                self.new_cluster.member_base = self.cluster.member_base
+                self.new_cluster.wave_bounds = self.cluster.wave_bounds
+                self.new_cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.update_ui_cluster_buttons(self.new_cluster)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+            self.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+            self.mainwindow.spikeset.clusters.remove(self.new_cluster)
+            self.mainwindow.update_ui_cluster_buttons(self.cluster)
+            self.mainwindow.update_active_cluster()
+            self.mainwindow.updateFeaturePlot()
+
+    @QtCore.pyqtSlot()
+    def on_actionCopy_Cluster_triggered(self):
         if self.activeClusterRadioButton():
-            backup = self.activeClusterRadioButton().cluster_reference
-
-            clust = self.spikeset.addCluster()
-            clust.bounds = backup.bounds
-            clust.member_base = backup.member_base
-            clust.add_bounds = backup.add_bounds
-            clust.calculateMembership(self.spikeset)
-
-            self.update_ui_cluster_buttons()
-            self.updateClusterDetailPlots()
-            self.updateFeaturePlot()
+            cluster = self.activeClusterRadioButton().cluster_reference
+            command = self.CommandCopyClusters(self, cluster)
+            self.undoStack.push(command)
 
     def closeEvent(self, event):
         if not self.unsaved:
@@ -1704,6 +1990,31 @@ class PyClustMainWindow(QtGui.QMainWindow):
             np.size(self.spikeset.spikes, 1)])
         self.mp_wavecutter.draw()
 
+    class CommandAddWvBoundary(QtGui.QUndoCommand):
+        """Wraps the add wave boundary logic to provide undo functionality."""
+
+        def __init__(self, mainwindow, cluster, bound):
+            desc = "add waveform boundary"
+            super(PyClustMainWindow.CommandAddWvBoundary, self).__init__(desc)
+            self.mainwindow = mainwindow
+            self.bound = bound
+            self.cluster = cluster
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+            self.cluster.wave_bounds.append(self.bound)
+            self.cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.updateClusterDetailPlots()
+            self.mainwindow.updateWavecutterPlot()
+            self.mainwindow.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+            self.cluster.wave_bounds.remove(self.bound)
+            self.cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.updateWavecutterPlot()
+            self.mainwindow.updateClusterDetailPlots()
+
     def wavecutter_onMousePress(self, event):
         pass
 
@@ -1732,12 +2043,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.wave_limit_data = []
 
                 cluster = self.activeClusterRadioButton().cluster_reference
-                cluster.wave_bounds.append(bound)
 
-                cluster.calculateMembership(self.spikeset)
-                self.updateClusterDetailPlots()
-                self.updateWavecutterPlot()
-                self.unsaved = True
+                command = self.CommandAddWvBoundary(self, cluster, bound)
+                self.undoStack.push(command)
 
         if event.button == 3:
             pass
@@ -1760,6 +2068,34 @@ class PyClustMainWindow(QtGui.QMainWindow):
             min(y0, y1), abs(x1 - x0), abs(y1 - y0)]
         self.mp_wavecutter.drawRectangle(rect)
 
+    class CommandDeleteWvBoundary(QtGui.QUndoCommand):
+        """Wraps the delete waveform boundary logic for undo functionality."""
+
+        def __init__(self, mainwindow, cluster, chan):
+            desc = "delete waveform boundary"
+            super(PyClustMainWindow.CommandDeleteWvBoundary, self).__init__(
+                desc)
+            self.mainwindow = mainwindow
+            self.cluster = cluster
+            self.chan = chan
+
+        def redo(self):
+            self.unsaved = self.mainwindow.unsaved
+            self.bounds_before = self.cluster.wave_bounds
+            self.cluster.wave_bounds = [bound for bound in
+                            self.cluster.wave_bounds if bound[0] != self.chan]
+            self.cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.updateClusterDetailPlots()
+            self.mainwindow.updateWavecutterPlot()
+            self.mainwindow.unsaved = True
+
+        def undo(self):
+            self.mainwindow.unsaved = self.unsaved
+            self.cluster.wave_bounds = self.bounds_before
+            self.cluster.calculateMembership(self.mainwindow.spikeset)
+            self.mainwindow.updateWavecutterPlot()
+            self.mainwindow.updateClusterDetailPlots()
+
     def wavecutter_remove_limits(self):
         if not self.spikeset:
             return
@@ -1768,13 +2104,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         chan_no = int(self.ui.spinBox_wavecutter_channel.value()) - 1
         cluster = self.activeClusterRadioButton().cluster_reference
-        cluster.wave_bounds = [bound for bound in
-            cluster.wave_bounds if bound[0] != chan_no]
 
-        cluster.calculateMembership(self.spikeset)
-        self.updateClusterDetailPlots()
-        self.updateWavecutterPlot()
-        self.unsaved = True
+        command = self.CommandDeleteWvBoundary(self, cluster, chan_no)
+        self.undoStack.push(command)
 
     def wavecutter_add_limit(self):
         self.wave_limit_mode = True

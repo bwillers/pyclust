@@ -420,13 +420,6 @@
              </layout>
             </item>
             <item>
-             <widget class="QPushButton" name="pushButton_autotrim">
-              <property name="text">
-               <string>Autotrim</string>
-              </property>
-             </widget>
-            </item>
-            <item>
              <widget class="QScrollArea" name="scrollArea_cluster_list">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
@@ -458,7 +451,7 @@
                  <x>0</x>
                  <y>0</y>
                  <width>121</width>
-                 <height>369</height>
+                 <height>435</height>
                 </rect>
                </property>
               </widget>
@@ -482,58 +475,85 @@
                <number>1</number>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
                <item>
-                <widget class="QPushButton" name="pushButton_add_cluster">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>81</width>
-                   <height>23</height>
-                  </size>
-                 </property>
+                <widget class="QLabel" name="label_12">
                  <property name="text">
-                  <string>Add Cluster</string>
+                  <string>Clusters:</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QPushButton" name="pushButton_delete_cluster">
-                 <property name="minimumSize">
-                  <size>
-                   <width>81</width>
-                   <height>23</height>
-                  </size>
+                <layout class="QGridLayout" name="gridLayout_2">
+                 <property name="horizontalSpacing">
+                  <number>2</number>
                  </property>
-                 <property name="text">
-                  <string>Delete Cluster</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_copy_cluster">
-                 <property name="text">
-                  <string>Copy Cluster</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_merge">
-                 <property name="text">
-                  <string>Merge Clusters</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_wavecutter_start">
-                 <property name="text">
-                  <string>Waveform Cutter</string>
-                 </property>
-                </widget>
+                 <item row="0" column="0">
+                  <widget class="QPushButton" name="pushButton_add_cluster">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="minimumSize">
+                    <size>
+                     <width>50</width>
+                     <height>23</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Add</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QPushButton" name="pushButton_delete_cluster">
+                   <property name="minimumSize">
+                    <size>
+                     <width>50</width>
+                     <height>23</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Delete</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0">
+                  <widget class="QPushButton" name="pushButton_copy_cluster">
+                   <property name="text">
+                    <string>Copy</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="1">
+                  <widget class="QPushButton" name="pushButton_split_cluster">
+                   <property name="text">
+                    <string>Split</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="0">
+                  <widget class="QPushButton" name="pushButton_merge">
+                   <property name="text">
+                    <string>Merge</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="1">
+                  <widget class="QPushButton" name="pushButton_autotrim">
+                   <property name="text">
+                    <string>Autotrim</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
                </item>
               </layout>
              </widget>
@@ -1496,7 +1516,13 @@
     <addaction name="menuMarker_Size"/>
     <addaction name="menuProjection_Type"/>
    </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
    <addaction name="menuCluster"/>
    <addaction name="menuLimits"/>
    <addaction name="menuView"/>
@@ -1761,22 +1787,6 @@
    </hints>
   </connection>
   <connection>
-   <sender>pushButton_wavecutter_start</sender>
-   <signal>clicked()</signal>
-   <receiver>actionWaveform_Cutter</receiver>
-   <slot>trigger()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>735</x>
-     <y>704</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>checkBox_refractory</sender>
    <signal>toggled(bool)</signal>
    <receiver>actionRefractory</receiver>
@@ -1897,6 +1907,22 @@
     <hint type="sourcelabel">
      <x>675</x>
      <y>60</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_split_cluster</sender>
+   <signal>clicked()</signal>
+   <receiver>actionSplit_Cluster</receiver>
+   <slot>trigger()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>792</x>
+     <y>672</y>
     </hint>
     <hint type="destinationlabel">
      <x>-1</x>
