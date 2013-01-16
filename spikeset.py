@@ -21,7 +21,6 @@ from PyQt4 import QtGui
 import features
 import boundaries
 import unique_colors
-import mmodel
 import spikeset_io
 
 # pickle needs this to load the saved bounds
@@ -94,7 +93,7 @@ class Spikeset:
         if self.use_pca:
             self.features.append(
                     features.Feature_PCA(self, self.feature_special['PCA']))
-            #self.features.append(features.Feature_Waveform_PCA(self))
+#            self.features.append(features.Feature_Waveform_PCA(self))
             self.feature_special['PCA'] = self.featureByName('PCA').coeff
 
     def __del__(self):
@@ -151,8 +150,11 @@ class Spikeset:
                 clust.wave_bounds = cluster['wave_bounds']
                 clust.add_bounds = cluster['add_bounds']
                 clust.del_bounds = cluster['del_bounds']
-                #clust.membership_model = cluster['mmodel']
-                clust.member_base = cluster['member_base']
+                if 'mmodel' in cluster.keys():
+                    temp = cluster['mmodel'][0]
+                    clust.member_base = temp.labels == temp.model_id
+                elif 'member_base' in cluster.keys():
+                    clust.member_base = cluster['member_base']
                 clust.calculateMembership(self)
 
         else:

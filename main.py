@@ -15,7 +15,7 @@ import scipy.stats
 import scipy.signal
 import matplotlib as mpl
 import sklearn.mixture as mixture
-import sklearn.cluster
+#import sklearn.cluster
 
 import pickle
 import os
@@ -30,8 +30,8 @@ import spikeset_io
 import featurewidget
 import multiplotwidget
 import boundaries
-import features
-import mmodel
+#import features
+
 
 def xcorr_ts(t1, t2, demean=True, normed=True, binsize=2, maxlag=None):
     """Computes the xcorr of spiketrains times t1 and t2. Units assumed ms."""
@@ -400,12 +400,26 @@ class PyClustMainWindow(QtGui.QMainWindow):
             print 'Splitting cluster into', n, 'components using wPCA/GMM'
             clust = self.activeClusterRadioButton().cluster_reference
             gmm = mixture.GMM(n_components=n, covariance_type='full')
-            spikes = self.spikeset.spikes[clust.member, :, :]
-            spikes = spikes.reshape((spikes.shape[0], spikes.shape[1] *
-                                      spikes.shape[2]))
-            input_data, _, _ = features.PCA(spikes, 4)
-            gmm.fit(input_data)
+            #spikes = self.spikeset.spikes[clust.member, :, :]
+            #spikes = spikes.reshape((spikes.shape[0], spikes.shape[1] *
+            #                          spikes.shape[2]))
+            #input_data, _, _ = features.PCA(spikes, 4)
+            if self._overviewmode:
+                # load all the current overview data
+                data_x = self.spikeset.featureByName(self.mp_proj.feature_x)
+                input_data = data_x.data[clust.member, :]
+            else:
+                # load the current projection data if were not in overview mode
+                data_x = self.spikeset.featureByName(self.mp_proj.feature_x)
+                data_x = data_x.data[clust.member, self.mp_proj.chan_x]
+                data_y = self.spikeset.featureByName(self.mp_proj.feature_y)
+                data_y = data_y.data[clust.member, self.mp_proj.chan_y]
+                input_data = np.vstack((data_x, data_y)).T
 
+                #features.debug_trace()
+            gmm.fit(input_data)
+            #km = sklearn.cluster.KMeans(n)
+            #labels = km.fit_predict(input_data)
             labels = gmm.predict(input_data)
             mlabels = np.zeros((self.spikeset.N,))
             mlabels[clust.member] = labels + 1
@@ -539,7 +553,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.checkBox_ellipse.setChecked(checked)
         self.ui.checkBox_ellipse.blockSignals(False)
 
-
     class CommandAutotrimClusters(QtGui.QUndoCommand):
         """Wraps the final autotrim logic to provide undo functionality."""
 
@@ -583,7 +596,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateFeaturePlot()
         self.updateClusterDetailPlots()
         self.ui.stackedWidget.setCurrentIndex(0)
-
 
     def __init__(self, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
@@ -1247,12 +1259,12 @@ class PyClustMainWindow(QtGui.QMainWindow):
             btype = 'add'
         else:
             btype = 'limits'
-        bns = cluster.getBoundaries(feature_x, feature_x_chan, feature_y, \
+        bns = cluster.getBoundaries(feature_x, feature_x_chan, feature_y,
                                 feature_y_chan, btype)
         if bns == []:
             return
 
-        command = self.CommandDeleteBoundary(self, cluster, \
+        command = self.CommandDeleteBoundary(self, cluster,
                 (feature_x, feature_y),  (feature_x_chan, feature_y_chan))
         self.undoStack.push(command)
 
@@ -1350,6 +1362,15 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.comboBox_feature_y_chan.clear()
         for i in valid_y_chans:
             self.ui.comboBox_feature_y_chan.addItem(str(i + 1))
+
+        # If we're plotting the same thing on X and Y remove the last chan in X
+        chans = self.spikeset.featureByName(current_x).channels
+        index = self.ui.comboBox_feature_x_chan.findText(str(chans))
+
+        if current_x == current_y and index >= 0:
+            if self.ui.comboBox_feature_x_chan.currentText() == str(chans):
+                self.ui.comboBox_feature_x_chan.setCurrentIndex(chans - 2)
+            self.ui.comboBox_feature_x_chan.removeItem(index)
 
         # Update the feature widget
         self.mp_proj.setFeatureX(current_x)
@@ -1653,8 +1674,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
             return
 
         self.junk_cluster._visible = self.junk_cluster.check.isChecked()
-        check_boxes = [ui[3] for ui in self.cluster_ui_buttons] + [
-                self.junk_cluster.check]
 
         if self._overviewmode:
             self.mp_proj_multi.updatePlot(self.spikeset, self.junk_cluster)

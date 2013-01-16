@@ -221,6 +221,13 @@ class Feature_PCA(Feature):
         return scores
 
 
+def debug_trace():
+    from PyQt4.QtCore import pyqtRemoveInputHook
+    from ipdb import set_trace
+    pyqtRemoveInputHook()
+    set_trace()
+
+
 class Feature_Waveform_PCA(Feature):
     def __init__(self, spikeset, coeff=None):
         self.coeff = coeff
@@ -229,19 +236,14 @@ class Feature_Waveform_PCA(Feature):
     def calculate(self, spikeset):
         print "Calculating waveform based PCA",
         t1 = time.clock()
-        K = 3
-        self.coeff = np.zeros((spikeset.spikes.shape[1], K,
-            spikeset.spikes.shape[2]))
-        scores = np.zeros((spikeset.spikes.shape[0], K,
-            spikeset.spikes.shape[2]))
-        for chan in xrange(spikeset.spikes.shape[2]):
-            inputdata = spikeset.spikes[:, :, chan]
-            #scores[:,:,chan], self.coeff[:, chan], stx = PCA(inputdata, K)
-            temp1, temp2, stx = PCA(inputdata, K)
-            scores[:, :, chan] = temp1
-            self.coeff[:, :, chan] = temp2
+        temp = spikeset.spikes.reshape((spikeset.N, spikeset.spikes.shape[1]
+                                        * spikeset.spikes.shape[2]))
+        temp = temp - np.mean(temp, axis=0)
+        sigma = np.dot(temp.T, temp)
+        u, s, d = np.linalg.svd(sigma)
+        K = 12
+        self.coeff = u[:, :K]
+        scores = np.dot(temp, self.coeff)
         t2 = time.clock()
         print "took", (t2 - t1), "seconds."
-        scores = np.reshape(scores, (scores.shape[0], scores.shape[1] *
-            scores.shape[2]))
         return scores
