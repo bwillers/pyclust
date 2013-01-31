@@ -94,11 +94,7 @@ def pointsInsideEllipse(data, center, angle, size):
     data = data - center
     rotmat = np.array([[np.cos(angle), np.sin(angle)],
             [-np.sin(angle), np.cos(angle)]])
-#    import ipdb; ipdb.set_trace()
-#    data = np.dot(data.T, rotmat)
     data = np.dot(rotmat, data.T).T
-#    print data.shape
-
     data = data / size
     return np.sum(np.power(data, 2), axis=1) <= 1
 

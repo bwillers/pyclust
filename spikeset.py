@@ -79,7 +79,8 @@ class Spikeset:
         print "Computing features."
         if not special:
             self.feature_special = dict()
-            self.feature_special['PCA'] = None
+            self.feature_special['fPCA'] = None
+            self.feature_special['wPCA'] = None
         else:
             self.feature_special = special
 
@@ -92,9 +93,13 @@ class Spikeset:
 
         if self.use_pca:
             self.features.append(
-                    features.Feature_PCA(self, self.feature_special['PCA']))
-#            self.features.append(features.Feature_Waveform_PCA(self))
-            self.feature_special['PCA'] = self.featureByName('PCA').coeff
+                    features.Feature_PCA(self, self.feature_special['fPCA']))
+            self.features.append(
+                features.Feature_Waveform_PCA(self,
+                                              self.feature_special['wPCA']))
+            self.features.append(features.Feature_Waveform_PCA(self))
+            self.feature_special['fPCA'] = self.featureByName('fPCA').coeff
+            self.feature_special['wPCA'] = self.featureByName('wPCA').coeff
 
     def __del__(self):
         """Destructor."""
@@ -531,9 +536,13 @@ class Cluster:
                     height = np.sqrt(kval) * size[1]
                     ww = np.logical_not(boundaries.pointsInsideEllipse(pdata,
                         center, angle, (width, height)))
-                    proj_fitness[i] = np.sum(refr[ww]).astype(float) \
-                        / np.sum(ww)
+                    if np.sum(ww) == 0:
+                        proj_fitness[i] = np.nan
+                    else:
+                        proj_fitness[i] = np.sum(refr[ww]).astype(float) \
+                            / np.sum(ww)
                     if np.isinf(width) or np.isinf(height):
+                        raise ValueError("Infinite width or height")
                         import PyQt4.QtCore
                         PyQt4.QtCore.pyqtRemoveInputHook()
                         import ipdb

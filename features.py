@@ -192,7 +192,7 @@ def PCA(data, numcomponents=3):
 class Feature_PCA(Feature):
     def __init__(self, spikeset, coeff=None):
         self.coeff = coeff
-        Feature.__init__(self, 'PCA', spikeset)
+        Feature.__init__(self, 'fPCA', spikeset)
 
     def calculate(self, spikeset):
         p = spikeset.featureByName('Peak').data
@@ -200,6 +200,8 @@ class Feature_PCA(Feature):
         t = spikeset.featureByName('Trough').data
         e = np.sqrt(spikeset.featureByName('Energy').data)
         inputdata = np.hstack((p, np.sqrt(e), v, t))
+        temp = inputdata - np.mean(inputdata, axis=0)
+        sigma = np.dot(temp.T, temp)
         # demeaning really just shifts by a constant, not worth breaking
         # existing cluster files
         # inputdata = inputdata - np.mean(inputdata, axis=0)
@@ -208,14 +210,18 @@ class Feature_PCA(Feature):
         else:
             print "Calculating feature based PCA",
             t1 = time.clock()
-            M = 100000
-            if spikeset.N > M:
-                perm = np.random.permutation(spikeset.N)
-                scores, coeff, stx = PCA(inputdata[perm[0:M], :], 6)
-                scores = np.dot(inputdata, coeff)
-            else:
-                scores, coeff, stx = PCA(inputdata, 6)
-            self.coeff = coeff
+            u, s, d = np.linalg.svd(sigma)
+            K = 6
+            self.coeff = u[:, :K]
+            scores = np.dot(inputdata, self.coeff)
+            #M = 100000
+            #if spikeset.N > M:
+            #    perm = np.random.permutation(spikeset.N)
+            #    scores, coeff, stx = PCA(inputdata[perm[0:M], :], 6)
+            #    scores = np.dot(inputdata, coeff)
+            #else:
+            #    scores, coeff, stx = PCA(inputdata, 6)
+            #self.coeff = coeff
             t2 = time.clock()
             print "took", (t2 - t1), "seconds."
         return scores
@@ -239,11 +245,14 @@ class Feature_Waveform_PCA(Feature):
         temp = spikeset.spikes.reshape((spikeset.N, spikeset.spikes.shape[1]
                                         * spikeset.spikes.shape[2]))
         temp = temp - np.mean(temp, axis=0)
-        sigma = np.dot(temp.T, temp)
-        u, s, d = np.linalg.svd(sigma)
-        K = 12
-        self.coeff = u[:, :K]
-        scores = np.dot(temp, self.coeff)
-        t2 = time.clock()
-        print "took", (t2 - t1), "seconds."
+        if self.coeff is not None:
+            scores = np.dot(temp, self.coeff)
+        else:
+            sigma = np.dot(temp.T, temp)
+            u, s, d = np.linalg.svd(sigma)
+            K = 8
+            self.coeff = u[:, :K]
+            scores = np.dot(temp, self.coeff)
+            t2 = time.clock()
+            print "took", (t2 - t1), "seconds."
         return scores
