@@ -1696,9 +1696,19 @@ class PyClustMainWindow(QtGui.QMainWindow):
         # Draw average waveforms
         for i in range(0, 4):
             if N:
-                self.mp_wave.axes[i].errorbar(range(0,
-                    np.size(self.spikeset.spikes, 1)),
-                    cluster.wv_mean[:, i], cluster.wv_std[:, i], color='k')
+                #self.mp_wave.axes[i].errorbar(range(0,
+                #    np.size(self.spikeset.spikes, 1)),
+                #    cluster.wv_mean[:, i], cluster.wv_std[:, i], color='k')
+		self.mp_wave.axes[i].hold(False)
+		self.mp_wave.axes[i].plot(cluster.wv_mean[:,i], 'k',
+				linewidth=2)
+		self.mp_wave.axes[i].hold(True)
+		self.mp_wave.axes[i].plot(cluster.wv_std[:,i] + 
+				cluster.wv_mean[:,i], 'k-',
+				linewidth=0.5)
+		self.mp_wave.axes[i].plot(-cluster.wv_std[:,i] +
+				cluster.wv_mean[:,i], 'k-',
+				linewidth=0.5)
             else:
                 self.mp_wave.axes[i].cla()
 

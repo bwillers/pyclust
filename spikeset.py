@@ -83,6 +83,10 @@ class Spikeset:
             self.feature_special['wPCA'] = None
         else:
             self.feature_special = special
+            if not 'wPCA' in special.keys():
+                self.feature_special['wPCA'] = None
+            if not 'fPCA' in special.keys():
+                self.feature_special['fPCA'] = None
 
         self.features = []
         self.features.append(features.Feature_Peak(self))
@@ -97,7 +101,6 @@ class Spikeset:
             self.features.append(
                 features.Feature_Waveform_PCA(self,
                                               self.feature_special['wPCA']))
-            self.features.append(features.Feature_Waveform_PCA(self))
             self.feature_special['fPCA'] = self.featureByName('fPCA').coeff
             self.feature_special['wPCA'] = self.featureByName('wPCA').coeff
 

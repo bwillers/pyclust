@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1147</width>
-    <height>648</height>
+    <width>1266</width>
+    <height>860</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -54,21 +54,21 @@
              <item>
               <widget class="QComboBox" name="comboBox_feature_x_chan">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>31</width>
+                 <width>40</width>
                  <height>22</height>
                 </size>
                </property>
                <property name="maximumSize">
                 <size>
-                 <width>31</width>
-                 <height>22</height>
+                 <width>16777215</width>
+                 <height>16777215</height>
                 </size>
                </property>
                <item>
@@ -88,21 +88,21 @@
              <item>
               <widget class="QComboBox" name="comboBox_feature_y_chan">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>31</width>
+                 <width>40</width>
                  <height>22</height>
                 </size>
                </property>
                <property name="maximumSize">
                 <size>
-                 <width>31</width>
-                 <height>22</height>
+                 <width>16777215</width>
+                 <height>16777215</height>
                 </size>
                </property>
                <item>
@@ -118,6 +118,12 @@
             <layout class="QHBoxLayout" name="horizontalLayout_6">
              <item>
               <widget class="QPushButton" name="pushButton_previous_projection">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
                <property name="minimumSize">
                 <size>
                  <width>31</width>
@@ -137,6 +143,12 @@
              </item>
              <item>
               <widget class="QPushButton" name="pushButton_next_projection">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
                <property name="minimumSize">
                 <size>
                  <width>31</width>
@@ -599,7 +611,7 @@
                <property name="minimumSize">
                 <size>
                  <width>100</width>
-                 <height>300</height>
+                 <height>500</height>
                 </size>
                </property>
                <property name="maximumSize">
@@ -619,11 +631,10 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>135</width>
-                  <height>308</height>
+                  <width>175</width>
+                  <height>498</height>
                  </rect>
                 </property>
-                <zorder>frame_clusterbuttons</zorder>
                </widget>
               </widget>
              </item>
@@ -1524,8 +1535,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1147</width>
-     <height>21</height>
+     <width>1266</width>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

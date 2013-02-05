@@ -165,7 +165,7 @@ def loadNtt(filename, should_d2a=True):
     a2d_conversion = None
     fs = None
     for line in header.split('\n'):
-        line = line.replace('\t', ' ')  # on some rigs it seems to be tab spaced
+        line = line.replace('\t', ' ')
         if line.strip().startswith('-SamplingFrequency'):
             fs = float(line.strip().split(' ')[1].strip())
         if line.strip().startswith('-ADBitVolts'):

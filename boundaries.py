@@ -1,6 +1,5 @@
 
 import numpy as np
-import matplotlib.nxutils as nx
 import matplotlib as mpl
 import scipy.stats
 
@@ -36,7 +35,9 @@ class BoundaryPolygon2D(Boundary):
 
         data = np.column_stack((px, py))
 
-        return nx.points_inside_poly(data, self.bounds)
+        #return nx.points_inside_poly(data, self.bounds)
+        path = mpl.path.Path(self.bounds)
+        return path.contains_points(data)
 
     def draw(self, axes, color='k', linestyle='-'):
         bound = np.vstack((self.bounds, self.bounds[0, :]))
