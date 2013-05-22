@@ -1,11 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Mar 29 23:43:03 2012
-
-@author: Bernard
-"""
-
-#!/usr/bin/python -d
+#!/usr/bin/python
 
 from PyQt4 import QtCore, QtGui
 
@@ -1703,7 +1696,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 		self.mp_wave.axes[i].plot(cluster.wv_mean[:,i], 'k',
 				linewidth=2)
 		self.mp_wave.axes[i].hold(True)
-		self.mp_wave.axes[i].plot(cluster.wv_std[:,i] + 
+		self.mp_wave.axes[i].plot(cluster.wv_std[:,i] +
 				cluster.wv_mean[:,i], 'k-',
 				linewidth=0.5)
 		self.mp_wave.axes[i].plot(-cluster.wv_std[:,i] +

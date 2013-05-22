@@ -33,3 +33,18 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+
+# Various data files
+*.ntt
+*.swp
+*.mat
+*.zip
+*.fd
+*.bounds
+*.spike
+*.cluster
+*.feat
+
+# py2exe stuff
+build/*
+dist/*
