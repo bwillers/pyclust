@@ -18,8 +18,13 @@ Copyright © 2005 Florent Rougon, 2006 Darren Dale
 
 __version__ = "1.0.0"
 
-from PyQt4.QtGui import QSizePolicy
-from PyQt4.QtCore import QSize
+import matplotlib
+
+matplotlib.use('Qt4Agg')
+matplotlib.rcParams['backend.qt4'] = 'PySide'
+
+from PySide.QtGui import QSizePolicy
+from PySide.QtCore import QSize
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
@@ -99,7 +104,7 @@ class MatplotlibWidget(Canvas):
 #===============================================================================
 if __name__ == '__main__':
     import sys
-    from PyQt4.QtGui import QMainWindow, QApplication
+    from PySide.QtGui import QMainWindow, QApplication
     from numpy import linspace
 
     class ApplicationWindow(QMainWindow):

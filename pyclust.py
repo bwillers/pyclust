@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-from PyQt4 import QtCore, QtGui
+#from PyQt4 import QtCore, QtGui
+from PySide import QtCore, QtGui
 
 import numpy as np
 import scipy.io as sio
@@ -58,7 +59,7 @@ def xcorr(x1, x2, demean=True, normed=True):
 
 class PyClustMainWindow(QtGui.QMainWindow):
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionWaveform_Cutter_triggered(self):
         self.ui.stackedWidget.setCurrentIndex(1)
         self.updateWavecutterPlot()
@@ -67,7 +68,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.stackedWidget.setCurrentIndex(0)
         self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionMerge_Clusters_triggered(self):
         active = self.activeClusterRadioButton()
         if active and active.cluster_reference != self.junk_cluster:
@@ -385,7 +386,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mainwindow.update_active_cluster()
             self.mainwindow.updateFeaturePlot()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionSplit_Cluster_triggered(self):
         n, ok = QtGui.QInputDialog.getInt(self, 'Split clusters',
                 'Split into how many clusters?', 2)
@@ -420,7 +421,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             command = self.CommandSplitCluster(self, clust, mlabels, n)
             self.undoStack.push(command)
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionAutotrim_triggered(self):
         active = self.activeClusterRadioButton()
         if active and active.cluster_reference != self.junk_cluster:
@@ -446,7 +447,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.pushButton_autotrim_apply.setEnabled(True)
             self.ui.pushButton_autotrim_cancel.setEnabled(True)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionRefractory_triggered(self, checked=None):
         self.mp_proj.setRefractory(checked)
         self.mp_proj_multi.setRefractory(checked)
@@ -458,7 +459,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.checkBox_merge_refractory.blockSignals(False)
         self.merge_redraw()
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionOverview_Mode_triggered(self, checked=None):
         self.ui.checkBox_overview.blockSignals(True)
         self.ui.checkBox_overview.setChecked(checked)
@@ -490,7 +491,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionScatter_triggered(self, checked=None):
         if checked:
             self.mp_proj.setPlotType(-2)
@@ -499,7 +500,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.radioButton_scatter.setChecked(True)
             self.ui.radioButton_scatter.blockSignals(False)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionDensity_triggered(self, checked=None):
         if checked:
             self.mp_proj.setPlotType(-3)
@@ -507,7 +508,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.radioButton_density.setChecked(True)
             self.ui.radioButton_density.blockSignals(False)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionLog_Density_triggered(self, checked=None):
         if checked:
             self.mp_proj.setPlotType(-4)
@@ -515,7 +516,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.radioButton_log_density.setChecked(True)
             self.ui.radioButton_log_density.blockSignals(False)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionMarker_Size1_triggered(self, checked=None):
         if checked:
             self.mp_proj.setMarkerSize(1)
@@ -523,7 +524,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.spinBox_markerSize.setValue(1)
             self.ui.spinBox_markerSize.blockSignals(False)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionMarker_Size3_triggered(self, checked=None):
         if checked:
             self.mp_proj.setMarkerSize(3)
@@ -531,7 +532,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.spinBox_markerSize.setValue(3)
             self.ui.spinBox_markerSize.blockSignals(False)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionMarker_Size5_triggered(self, checked=None):
         if checked:
             self.mp_proj.setMarkerSize(5)
@@ -539,7 +540,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.spinBox_markerSize.setValue(5)
             self.ui.spinBox_markerSize.blockSignals(False)
 
-    @QtCore.pyqtSlot('bool')
+    @QtCore.Slot(bool)
     def on_actionEliptical_triggered(self, checked=None):
         self.mp_proj.setBoundaryElliptical(checked)
         self.ui.checkBox_ellipse.blockSignals(True)
@@ -1111,7 +1112,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mainwindow.updateFeaturePlot()
             self.mainwindow.updateClusterDetailPlots()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionDelete_Cluster_triggered(self):
         command = self.CommandDeleteCluster(self)
         self.undoStack.push(command)
@@ -1130,7 +1131,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.unsaved = True
 
     # Tell the projection widget to start drawing a boundary
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionAdd_Limit_triggered(self):
         if not self.spikeset:
             return
@@ -1236,7 +1237,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mainwindow.update_active_cluster()
             self.mainwindow.updateFeaturePlot()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionDelete_Limit_triggered(self):
         if (not self.spikeset) or (not self.activeClusterRadioButton()):
             return
@@ -1310,7 +1311,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mainwindow.updateFeaturePlot()
             self.mainwindow.updateClusterDetailPlots()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionAdd_Cluster_triggered(self):
         command = self.CommandAddCluster(self)
         self.undoStack.push(command)
@@ -1458,7 +1459,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         valid_y = self.spikeset.featureByName(current_x).valid_y_features(
             int(self.ui.comboBox_feature_x_chan.currentText()) - 1)
-        valid_y_chans = [chans for (name, chans) in valid_y
+        valid_y_chans = [channels for (name, channels) in valid_y
             if name == current_y][0]
         # y_chans is None if it should be all channels for a different feature
         # type, since we have no way of knowing how many there will be apriori,
@@ -1653,9 +1654,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.updateClusterDetailPlots()
         self.updateFeaturePlot()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionOpen_triggered(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self,
+        fname, _ = QtGui.QFileDialog.getOpenFileName(self,
             'Open ntt file',
             filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
 
@@ -1797,7 +1798,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.mp_drift.draw()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionSave_triggered(self):
         if not (self.current_filename and self.spikeset.clusters):
             return
@@ -1869,9 +1870,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.unsaved = False
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionImport_Bound_triggered(self):
-        filename = QtGui.QFileDialog.getOpenFileName(self,
+        filename, _ = QtGui.QFileDialog.getOpenFileName(self,
             'Open ntt file', filter='*.bounds')
         if not filename:
             return
@@ -1914,7 +1915,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.mainwindow.update_active_cluster()
             self.mainwindow.updateFeaturePlot()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def on_actionCopy_Cluster_triggered(self):
         if self.activeClusterRadioButton():
             cluster = self.activeClusterRadioButton().cluster_reference

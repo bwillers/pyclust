@@ -7,7 +7,8 @@
 #
 # WARNING! All changes made in this file will be lost!
 
-from PyQt4 import QtCore, QtGui
+#from PyQt4 import QtCore, QtGui
+from PySide import QtCore, QtGui
 
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
@@ -463,7 +464,7 @@ class Ui_MainWindow(object):
         self.widget.setMaximumSize(QtCore.QSize(285, 16777215))
         self.widget.setObjectName(_fromUtf8("widget"))
         self.verticalLayout_6 = QtGui.QVBoxLayout(self.widget)
-        self.verticalLayout_6.setMargin(0)
+        self.verticalLayout_6.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_6.setObjectName(_fromUtf8("verticalLayout_6"))
         self.frame_details_display = QtGui.QFrame(self.widget)
         self.frame_details_display.setMinimumSize(QtCore.QSize(267, 0))

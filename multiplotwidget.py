@@ -1,8 +1,8 @@
 
 __version__ = "1.0.0"
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PySide.QtGui import *
+from PySide.QtCore import *
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
@@ -63,27 +63,27 @@ class MultiplotWidget(Canvas):
     def setChanY(self, chan):
         pass
 
-    @pyqtSignature("setShowUnclustered(bool)")
+    @Slot(bool)
     def setShowUnclustered(self, show):
         self.unclustered = show
         self.emit(SIGNAL("featureRedrawRequired()"))
 
-    @pyqtSignature("setUnclusteredExclusive(bool)")
+    @Slot(bool)
     def setUnclusteredExclusive(self, excl):
         self.exclusive = excl
         self.emit(SIGNAL("featureRedrawRequired()"))
 
-    @pyqtSignature("setRefractory(bool)")
+    @Slot(bool)
     def setRefractory(self, show):
         self.refractory = show
         self.emit(SIGNAL("featureRedrawRequired()"))
 
-    @pyqtSignature("setMarkerSize(int)")
+    @Slot(int)
     def setMarkerSize(self, size):
         self.markersize = size
         self.emit(SIGNAL("featureRedrawRequired()"))
 
-    @pyqtSignature("setPlotType(int)")
+    @Slot(int)
     def setPlotType(self, ptype):
         self.ptype = ptype
         self.emit(SIGNAL("featureRedrawRequired()"))
