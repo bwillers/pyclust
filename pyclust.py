@@ -1003,7 +1003,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
             check = ui_container[3]
 
             self.buttonGroup_cluster.removeButton(radio)
-            self.labels_container.layout().removeItem(layout)
+
+            # for reasons unclear to me using removeitem segfaults
+            labels_cont = self.labels_container.layout()
+            for  i in xrange(labels_cont.count()):
+                if labels_cont.itemAt(i) is layout:
+                    labels_cont.takeAt(i)
+            #labels_cont.removeItem(layout)
+
             for i in range(layout.count()):
                 if layout.itemAt(i).widget():
                     layout.itemAt(i).widget().close()
