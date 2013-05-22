@@ -19,9 +19,12 @@ import boundaries  # Need to know how to create boundaries
 
 class ProjectionWidget(Canvas):
 
-    __pyqtSignals__ = ("featureRedrawRequired()",
-    "polygonBoundaryDrawn(PyQt_PyObject)",
-    "ellipseBoundaryDrawn(PyQt_PyObject)")
+    #__pyqtSignals__ = ("featureRedrawRequired()",
+    #"polygonBoundaryDrawn(PyQt_PyObject)",
+    #"ellipseBoundaryDrawn(PyQt_PyObject)")
+    featureRedrawRequired = Signal()
+    polygonBoundaryDrawn = Signal(object)
+    ellipseBoundaryDrawn = Signal(object)
 
     def __init__(self, parent=None):
         self.figure = Figure()
@@ -68,27 +71,32 @@ class ProjectionWidget(Canvas):
     @Slot(bool)
     def setShowUnclustered(self, show):
         self.unclustered = show
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(bool)
     def setUnclusteredExclusive(self, excl):
         self.exclusive = excl
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(bool)
     def setRefractory(self, show):
         self.refractory = show
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(int)
     def setMarkerSize(self, size):
         self.markersize = size
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(int)
     def setPlotType(self, ptype):
         self.ptype = ptype
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(bool)
     def setBoundaryElliptical(self, iselliptical):
@@ -100,7 +108,8 @@ class ProjectionWidget(Canvas):
 
     def resetLimits(self):
         self.prof_limits_reference = None
-        #self.emit(SIGNAL("featureRedrawRequired()"))
+        ##self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.featureRedrawRequired.emit()
 
     # These are not provided as signals since there is some non trivial
     # logic the main form needs to perform first
@@ -108,25 +117,29 @@ class ProjectionWidget(Canvas):
         self.feature_x = name
         self.resetLimits()
         self.stopMouseAction()
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     def setFeatureY(self, name):
         self.feature_y = name
         self.resetLimits()
         self.stopMouseAction()
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     def setChanX(self, chan):
         self.chan_x = chan
         self.resetLimits()
         self.stopMouseAction()
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     def setChanY(self, chan):
         self.chan_y = chan
         self.resetLimits()
         self.stopMouseAction()
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     # Given a set of spike and cluster data, create the figure
     def updatePlot(self, spikeset, junk):
@@ -288,7 +301,8 @@ class ProjectionWidget(Canvas):
             self.axes.set_ylim(self.prof_limits[1])
             self.draw()
         else:  # if its a density plot we should rebin for now
-            self.emit(SIGNAL("featureRedrawRequired()"))
+            #self.emit(SIGNAL("featureRedrawRequired()"))
+            self.featureRedrawRequired.emit()
         self.repaint()
 
     def onMousePress(self, event):
@@ -341,8 +355,9 @@ class ProjectionWidget(Canvas):
 
                 # With only two points there isnt really a polyogon
                 if len(temp) > 2:
-                    self.emit(SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"),
-                              bound)
+                    self.polygonBoundaryDrawn.emit(bound)
+                    #self.emit(SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"),
+                    #          bound)
                 self.stopMouseAction()
 
         # complete the ellipse boundary
@@ -389,7 +404,8 @@ class ProjectionWidget(Canvas):
                     (self.chan_x, self.chan_y), center, angle,
                     (width, height))
 
-            self.emit(SIGNAL("ellipseBoundaryDrawn(PyQt_PyObject)"), bound)
+            #self.emit(SIGNAL("ellipseBoundaryDrawn(PyQt_PyObject)"), bound)
+            self.ellipseBoundaryDrawn.emit(bound)
 
             self.limit_data = []
             self.limit_mode = False
@@ -403,7 +419,8 @@ class ProjectionWidget(Canvas):
                 self.axes.set_ylim(self.prof_limits[1])
                 self.draw()
             else:
-                self.emit(SIGNAL("featureRedrawRequired()"))
+                #self.emit(SIGNAL("featureRedrawRequired()"))
+                self.featureRedrawRequired.emit()
 
     def onMouseMove(self, event):
         if self.limit_mode:

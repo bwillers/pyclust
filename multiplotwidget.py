@@ -21,7 +21,9 @@ import boundaries  # Need to know how to create boundaries
 class MultiplotWidget(Canvas):
     """A widget to plot all permutation of feature channels as an overview."""
 
-    __pyqtSignals__ = ("featureRedrawRequired()")
+    #__pyqtSignals__ = ("featureRedrawRequired()")
+    # define the signal
+    featureRedrawRequired = Signal()
 
     def __init__(self, parent=None):
         self.figure = Figure()
@@ -51,6 +53,7 @@ class MultiplotWidget(Canvas):
 
         self.feature = None
 
+
     def setFeatureX(self, feature):
         self.setFeature(feature)
 
@@ -66,32 +69,38 @@ class MultiplotWidget(Canvas):
     @Slot(bool)
     def setShowUnclustered(self, show):
         self.unclustered = show
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(bool)
     def setUnclusteredExclusive(self, excl):
         self.exclusive = excl
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(bool)
     def setRefractory(self, show):
         self.refractory = show
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(int)
     def setMarkerSize(self, size):
         self.markersize = size
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     @Slot(int)
     def setPlotType(self, ptype):
         self.ptype = ptype
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     def resetLimits(self):
         #self.prof_limits_reference = None
         self.prof_limits_reference = {}
-        #self.emit(SIGNAL("featureRedrawRequired()"))
+        ##self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.featureRedrawRequired.emit()
 
     # These are not provided as signals since there is some non trivial
     # logic the main form needs to perform first
@@ -100,7 +109,8 @@ class MultiplotWidget(Canvas):
         self.figure.clear()
         self.axes = {}
         self.resetLimits()
-        self.emit(SIGNAL("featureRedrawRequired()"))
+        #self.emit(SIGNAL("featureRedrawRequired()"))
+        self.featureRedrawRequired.emit()
 
     # Given a set of spike and cluster data, create the figure
     def updatePlot(self, spikeset, junk):

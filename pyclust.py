@@ -614,11 +614,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.menuEdit.addAction(self.ui.actionUndo)
         self.ui.menuEdit.addAction(self.ui.actionRedo)
         shortcut = QtGui.QShortcut(QtGui.QKeySequence.Undo, self)
-        self.connect(shortcut, QtCore.SIGNAL("activated()"),
-                     self.ui.actionUndo.trigger)
+        shortcut.activated.connect(self.ui.actionUndo.trigger)
         shortcut = QtGui.QShortcut(QtGui.QKeySequence.Redo, self)
-        self.connect(shortcut, QtCore.SIGNAL("activated()"),
-                     self.ui.actionRedo.trigger)
+        shortcut.activated.connect(self.ui.actionRedo.trigger)
 
         # Create action groups for the mnu items
         self.ui.agroup_marker = QtGui.QActionGroup(self, exclusive=True)
@@ -635,72 +633,62 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.checkBox_merge_background.clicked.connect(
                 self.merge_redraw)
 
-        QtCore.QObject.connect(self.ui.comboBox_feature_x_chan,
-            QtCore.SIGNAL("currentIndexChanged(int)"),
+        self.ui.comboBox_feature_x_chan.currentIndexChanged.connect(
             self.feature_channel_x_changed)
 
-        QtCore.QObject.connect(self.ui.comboBox_feature_x,
-            QtCore.SIGNAL("currentIndexChanged(int)"),
+        self.ui.comboBox_feature_x.currentIndexChanged.connect(
             self.feature_x_changed)
 
-        QtCore.QObject.connect(self.ui.comboBox_feature_y_chan,
-            QtCore.SIGNAL("currentIndexChanged(int)"),
+        self.ui.comboBox_feature_y_chan.currentIndexChanged.connect(
             self.feature_channel_y_changed)
 
-        QtCore.QObject.connect(self.ui.comboBox_feature_y,
-            QtCore.SIGNAL("currentIndexChanged(int)"),
+        self.ui.comboBox_feature_y.currentIndexChanged.connect(
             self.feature_y_changed)
 
-        QtCore.QObject.connect(self.ui.comboBox_merge_c2,
-            QtCore.SIGNAL("currentIndexChanged(int)"),
+        self.ui.comboBox_merge_c2.currentIndexChanged.connect(
             self.merge_cluster_choice_changed)
 
-        QtCore.QObject.connect(self.ui.pushButton_next_projection,
-            QtCore.SIGNAL("clicked()"), self.button_next_feature_click)
+        self.ui.pushButton_next_projection.clicked.connect(
+            self.button_next_feature_click)
 
-        QtCore.QObject.connect(self.ui.pushButton_previous_projection,
-            QtCore.SIGNAL("clicked()"), self.button_prev_feature_click)
+        self.ui.pushButton_previous_projection.clicked.connect(
+            self.button_prev_feature_click)
 
-        QtCore.QObject.connect(self.ui.pushButton_wavecutter_done,
-            QtCore.SIGNAL("clicked()"), self.switch_to_maindisplay)
+        self.ui.pushButton_wavecutter_done.clicked.connect(
+            self.switch_to_maindisplay)
 
-        QtCore.QObject.connect(self.ui.pushButton_wavecutter_redraw,
-            QtCore.SIGNAL("clicked()"), self.updateWavecutterPlot)
+        self.ui.pushButton_wavecutter_redraw.clicked.connect(
+            self.updateWavecutterPlot)
 
-        QtCore.QObject.connect(self.ui.lineEdit_wavecutter_count,
-            QtCore.SIGNAL("editingFinished()"), self.updateWavecutterPlot)
+        self.ui.lineEdit_wavecutter_count.editingFinished.connect(
+            self.updateWavecutterPlot)
 
-        QtCore.QObject.connect(self.ui.checkBox_wavecutter_refractory,
-            QtCore.SIGNAL("stateChanged(int)"), self.updateWavecutterPlot)
+        self.ui.checkBox_wavecutter_refractory.stateChanged.connect(
+            self.updateWavecutterPlot)
 
-        QtCore.QObject.connect(self.ui.spinBox_wavecutter_channel,
-            QtCore.SIGNAL("valueChanged(int)"), self.updateWavecutterPlot)
+        self.ui.spinBox_wavecutter_channel.valueChanged.connect(
+            self.updateWavecutterPlot)
 
-        QtCore.QObject.connect(self.ui.pushButton_wavecutter_add_limit,
-            QtCore.SIGNAL("clicked()"), self.wavecutter_add_limit)
+        self.ui.pushButton_wavecutter_add_limit.clicked.connect(
+            self.wavecutter_add_limit)
 
-        QtCore.QObject.connect(self.ui.pushButton_wavecutter_remove_limit,
-            QtCore.SIGNAL("clicked()"), self.wavecutter_remove_limits)
+        self.ui.pushButton_wavecutter_remove_limit.clicked.connect(
+            self.wavecutter_remove_limits)
 
-        QtCore.QObject.connect(self.ui.pushButton_hide_all,
-            QtCore.SIGNAL("clicked()"),
+        self.ui.pushButton_hide_all.clicked.connect(
             lambda: self.hide_show_all_clusters(True))
 
-        QtCore.QObject.connect(self.ui.pushButton_show_all,
-            QtCore.SIGNAL("clicked()"),
+        self.ui.pushButton_show_all.clicked.connect(
             lambda: self.hide_show_all_clusters(False))
 
-        QtCore.QObject.connect(self.ui.buttonGroup_trimmer,
-            QtCore.SIGNAL("buttonClicked(int)"),
+        self.ui.buttonGroup_trimmer.buttonClicked.connect(
             lambda x: self.ui.stackedWidget_trimmer.setCurrentIndex(-x - 2))
 
-        QtCore.QObject.connect(self.ui.stackedWidget_trimmer,
-            QtCore.SIGNAL("currentChanged(int)"),
+        self.ui.stackedWidget_trimmer.currentChanged.connect(
             lambda x: self.updateWavecutterPlot() if x == 0
                 else self.updateOutlierPlot())
 
-        self.connect(self.ui.actionQuit, QtCore.SIGNAL("triggered()"),
-                     self.close)
+        self.ui.actionQuit.triggered.connect(self.close)
 
         self.ui.pushButton_autotrim_apply.clicked.connect(self.autotrim_apply)
         self.ui.pushButton_autotrim_cancel.clicked.connect(
@@ -720,8 +708,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         layout = QtGui.QVBoxLayout(self.labels_container)
         self.buttonGroup_cluster = QtGui.QButtonGroup()
         self.buttonGroup_cluster.setExclusive(True)
-        QtCore.QObject.connect(self.buttonGroup_cluster,
-            QtCore.SIGNAL("buttonClicked(int)"), self.update_active_cluster)
+        self.buttonGroup_cluster.buttonClicked.connect(
+             self.update_active_cluster)
 
         layout.addItem(QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum,
             QtGui.QSizePolicy.Expanding))
@@ -762,12 +750,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.mp_proj_multi.setVisible(False)
 
         # Connect the relevant signals/slots
-        QtCore.QObject.connect(self.mp_proj,
-                QtCore.SIGNAL("featureRedrawRequired()"),
-                self.updateFeaturePlot)
-        QtCore.QObject.connect(self.mp_proj_multi,
-                QtCore.SIGNAL("featureRedrawRequired()"),
-                self.updateFeaturePlot)
+        self.mp_proj.featureRedrawRequired.connect(self.updateFeaturePlot)
+        self.mp_proj_multi.featureRedrawRequired.connect(
+            self.updateFeaturePlot)
 
         # Signals for unclustered show checkbox
         self.ui.checkBox_show_unclustered.stateChanged.connect(
@@ -788,12 +773,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 self.mp_proj_multi.setMarkerSize)
 
         # Signal for polygon boundary drawn
-        QtCore.QObject.connect(self.mp_proj,
-                QtCore.SIGNAL("polygonBoundaryDrawn(PyQt_PyObject)"),
-                self.addBoundary)
-        QtCore.QObject.connect(self.mp_proj,
-                QtCore.SIGNAL("ellipseBoundaryDrawn(PyQt_PyObject)"),
-                self.addBoundary)
+        self.mp_proj.polygonBoundaryDrawn.connect(self.addBoundary)
+        self.mp_proj.ellipseBoundaryDrawn.connect(self.addBoundary)
 
         # Create shorter handles to important widgets
         self.mp_wave = self.ui.mplwidget_waveform
@@ -933,8 +914,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.checkBox_junk = QtGui.QCheckBox()
         self.checkBox_junk.setChecked(True)
-        QtCore.QObject.connect(self.checkBox_junk,
-            QtCore.SIGNAL("stateChanged(int)"), self.updateFeaturePlot)
+        self.checkBox_junk.stateChanged.connect(self.updateFeaturePlot)
 
         self.radioButton_junk = QtGui.QRadioButton()
         self.radioButton_junk.setChecked(True)
@@ -1045,8 +1025,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             else:
                 check.setChecked(True)
                 new_cluster._visible = True
-            QtCore.QObject.connect(check, QtCore.SIGNAL("stateChanged(int)"),
-                            self.cluster_checkbox_check_event)
+            check.stateChanged.connect(self.cluster_checkbox_check_event)
 
             radio = QtGui.QRadioButton()
             radio.setChecked(True)
@@ -1066,8 +1045,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
                     "QPushButton {background-color: rgb(%d, %d, %d);"
                     % new_cluster.color + " font: bold;" +
                     " color: rgb(255, 255, 255);}")
-            QtCore.QObject.connect(cbut, QtCore.SIGNAL("clicked()"),
-                self.button_cluster_color)
+            cbut.clicked.connect(self.button_cluster_color)
 
             hlayout.addItem(QtGui.QSpacerItem(40, 20,
                     QtGui.QSizePolicy.Expanding,

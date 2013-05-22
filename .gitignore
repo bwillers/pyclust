@@ -48,3 +48,6 @@ nosetests.xml
 # py2exe stuff
 build/*
 dist/*
+
+# rope
+.ropeproject

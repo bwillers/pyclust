@@ -680,7 +680,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_6.addWidget(self.frame_details_display)
         self.horizontalLayout_21.addWidget(self.widget)
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QtGui.QMenuBar(MainWindow)
+        self.menubar = QtGui.QMenuBar()
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1266, 25))
         self.menubar.setObjectName(_fromUtf8("menubar"))
         self.menuFile = QtGui.QMenu(self.menubar)

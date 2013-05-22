@@ -5,7 +5,7 @@ import scipy.stats
 
 
 # A simple boundary base class
-class Boundary:
+class Boundary(object):
 
     def withinBoundary(self, spikeset):
         return np.array([True] * spikeset.N)

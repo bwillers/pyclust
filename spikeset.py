@@ -16,7 +16,7 @@ import scipy.stats
 import numpy as np
 import sklearn.mixture
 
-from PyQt4 import QtGui
+from PySide import QtGui
 
 import features
 import boundaries
