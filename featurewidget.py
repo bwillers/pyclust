@@ -185,7 +185,7 @@ class ProjectionWidget(Canvas):
                 if not cluster._visible:
                     continue
 
-                col = map(lambda s: s / 255.0, cluster.color)
+                col = tuple(map(lambda s: s / 255.0, cluster.color))
                 # Plot the cluster spikes
                 self.axes.plot(xdata[cluster.member], ydata[cluster.member],
                         marker='o', markersize=self.markersize,
@@ -268,14 +268,14 @@ class ProjectionWidget(Canvas):
             bounds = cluster.getBoundaries(self.feature_x, self.chan_x,
                 self.feature_y, self.chan_y)
             for bound in bounds:
-                col = map(lambda s: s / 255.0, cluster.color)
+                col = tuple(map(lambda s: s / 255.0, cluster.color))
                 bound.draw(self.axes, color=col, linestyle='-')
 
             # Addition boundaries with dashed line
             bounds = cluster.getBoundaries(self.feature_x, self.chan_x,
                 self.feature_y, self.chan_y, 'add')
             for bound in bounds:
-                col = map(lambda s: s / 255.0, cluster.color)
+                col = tuple(map(lambda s: s / 255.0, cluster.color))
                 bound.draw(self.axes, color=col, linestyle='--')
 
     def finalizeZoom(self, event):
@@ -346,8 +346,8 @@ class ProjectionWidget(Canvas):
                 temp = np.array([np.array([point[0], point[1]]) for
                     point in self.limit_data])
 
-                print "Adding boundary on", self.feature_x, self.chan_x + 1, \
-                    self.feature_y, self.chan_y + 1
+                print("Adding boundary on", self.feature_x, self.chan_x + 1, \
+                    self.feature_y, self.chan_y + 1)
 
                 bound = boundaries.BoundaryPolygon2D(
                         (self.feature_x, self.feature_y),
@@ -438,8 +438,8 @@ class ProjectionWidget(Canvas):
             y0 = height - start[1]
             x1 = end[0]
             y1 = height - end[1]
-            rect = [int(val) for val in min(x0, x1),
-                min(y0, y1), abs(x1 - x0), abs(y1 - y0)]
+            rect = [int(val) for val in (min(x0, x1),
+                min(y0, y1), abs(x1 - x0), abs(y1 - y0))]
             self.drawRectangle(rect)
 
     # Paint using standard Canvas and then draw lines during

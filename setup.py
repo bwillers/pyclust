@@ -1,3 +1,4 @@
+from __future__ import print_function
 from setuptools import setup
 
 import sys
@@ -20,7 +21,7 @@ if len(sys.argv) >= 2 and sys.argv[1] == 'py2exe':
     try:
         import py2exe
     except ImportError:
-        print 'Could not import py2exe, windows build aborted'
+        print('Could not import py2exe, windows build aborted')
         sys.exit(0)
     import matplotlib
     options['options'] = {
@@ -46,7 +47,7 @@ if len(sys.argv) >= 2 and sys.argv[1] == 'py2app':
     try:
         import py2app
     except ImportError:
-        print 'Could not import py2app, mac build aborted'
+        print('Could not import py2app, mac build aborted')
         sys.exit(0)
     # mac options
     options['app'] = ['pyclust.py']

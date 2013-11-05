@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Mar 30 19:53:55 2012
-
-@author: Bernard
-"""
+from __future__ import print_function
 import time
 
 import numpy as np
@@ -208,7 +203,7 @@ class Feature_PCA(Feature):
         if self.coeff is not None:  # See if we were given projectioncomponents
             scores = np.dot(inputdata, self.coeff)
         else:
-            print "Calculating feature based PCA",
+            print("Calculating feature based PCA",)
             t1 = time.clock()
             u, s, d = np.linalg.svd(sigma)
             K = 6
@@ -223,7 +218,7 @@ class Feature_PCA(Feature):
             #    scores, coeff, stx = PCA(inputdata, 6)
             #self.coeff = coeff
             t2 = time.clock()
-            print "took", (t2 - t1), "seconds."
+            print("took", (t2 - t1), "seconds.")
         return scores
 
 
@@ -240,7 +235,7 @@ class Feature_Waveform_PCA(Feature):
         Feature.__init__(self, 'wPCA', spikeset)
 
     def calculate(self, spikeset):
-        print "Calculating waveform based PCA",
+        print("Calculating waveform based PCA",)
         t1 = time.clock()
         temp = spikeset.spikes.reshape((spikeset.N, spikeset.spikes.shape[1]
                                         * spikeset.spikes.shape[2]))
@@ -254,5 +249,5 @@ class Feature_Waveform_PCA(Feature):
             self.coeff = u[:, :K]
             scores = np.dot(temp, self.coeff)
             t2 = time.clock()
-            print "took", (t2 - t1), "seconds."
+            print("took", (t2 - t1), "seconds.")
         return scores

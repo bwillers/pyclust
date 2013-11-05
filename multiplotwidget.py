@@ -182,7 +182,7 @@ class MultiplotWidget(Canvas):
                         if not cluster._visible:
                             continue
 
-                        col = map(lambda s: s / 255.0, cluster.color)
+                        col = tuple(map(lambda s: s / 255.0, cluster.color))
                         # Plot the cluster spikes
                         self.axes[tw].plot(xdata[cluster.member],
                                        ydata[cluster.member],
@@ -270,12 +270,12 @@ class MultiplotWidget(Canvas):
                     bounds = cluster.getBoundaries(self.feature, proj_x,
                         self.feature, proj_y)
                     for bound in bounds:
-                        col = map(lambda s: s / 255.0, cluster.color)
+                        col = tuple(map(lambda s: s / 255.0, cluster.color))
                         bound.draw(self.axes[tw], color=col, linestyle='-')
 
                     # Addition boundaries with dashed line
                     bounds = cluster.getBoundaries(self.feature, proj_x,
                         self.feature, proj_y, 'add')
                     for bound in bounds:
-                        col = map(lambda s: s / 255.0, cluster.color)
+                        col = tuple(map(lambda s: s / 255.0, cluster.color))
                         bound.draw(self.axes[tw], color=col, linestyle='--')

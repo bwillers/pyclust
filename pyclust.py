@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from __future__ import print_function
 
 #from PyQt4 import QtCore, QtGui
 from PySide import QtCore, QtGui
@@ -16,6 +17,7 @@ import os
 import sys
 import time
 
+import six
 
 from gui import Ui_MainWindow
 
@@ -93,7 +95,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             self.ui.comboBox_merge_c2.blockSignals(True)
             self.ui.comboBox_merge_c2.clear()
             self.ui.comboBox_merge_c2.addItem("(Select)")
-            for i in xrange(len(self.spikeset.clusters)):
+            for i in range(len(self.spikeset.clusters)):
                 if i == id1:
                     continue
                 self.ui.comboBox_merge_c2.addItem("Cluster %d" % (i + 1))
@@ -184,9 +186,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         cf = lambda s: s / 255.0
         w1 = self.merge_clust.member
-        col1 = map(cf, self.merge_clust.color)
+        col1 = tuple(map(cf, self.merge_clust.color))
         w2 = self.spikeset.clusters[self.merge_id_2].member
-        col2 = map(cf, self.spikeset.clusters[self.merge_id_2].color)
+        col2 = tuple(map(cf, self.spikeset.clusters[self.merge_id_2].color))
         w3 = self.junk_cluster.member
         refr = self.spikeset.clusters[self.merge_id_1].refractory
 
@@ -391,7 +393,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         n, ok = QtGui.QInputDialog.getInt(self, 'Split clusters',
                 'Split into how many clusters?', 2)
         if ok:
-            print 'Splitting cluster into', n, 'components using wPCA/GMM'
+            print('Splitting cluster into', n, 'components using wPCA/GMM')
             clust = self.activeClusterRadioButton().cluster_reference
             gmm = mixture.GMM(n_components=n, covariance_type='full')
             #spikes = self.spikeset.spikes[clust.member, :, :]
@@ -1006,7 +1008,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
             # for reasons unclear to me using removeitem segfaults
             labels_cont = self.labels_container.layout()
-            for  i in xrange(labels_cont.count()):
+            for  i in range(labels_cont.count()):
                 if labels_cont.itemAt(i) is layout:
                     labels_cont.takeAt(i)
             #labels_cont.removeItem(layout)
@@ -1530,9 +1532,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
             if reply == QtGui.QMessageBox.No:
                 pass
 
-        print ''
-        print 'Trying to load file: ', fname
-        print 'Clearing current clusters'
+        print('')
+        print('Trying to load file: ', fname)
+        print('Clearing current clusters')
         if self.spikeset is not None:
             for cluster in self.spikeset.clusters[:]:
                 self.delete_cluster(cluster)
@@ -1546,14 +1548,14 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.ui.checkBox_show_unclustered.setChecked(True)
         self.ui.checkBox_show_unclustered_exclusive.setChecked(True)
 
-        print 'Loading file', fname
+        print('Loading file', fname)
         t1 = time.clock()
         self.spikeset = spikeset_io.loadSpikeset(fname)
         t2 = time.clock()
-        print 'Loaded', self.spikeset.N, 'spikes in ', (t2 - t1), 'seconds'
+        print('Loaded', self.spikeset.N, 'spikes in ', (t2 - t1), 'seconds')
 
-        self.ui.label_subjectid.setText(self.spikeset.subject)
-        self.ui.label_session.setText(self.spikeset.session)
+        self.ui.label_subjectid.setText(self.spikeset.subject.decode())
+        self.ui.label_session.setText(self.spikeset.session.decode())
         self.ui.label_fname.setText(
             os.path.splitext(os.path.split(fname)[1])[0])
         self.curfile = fname
@@ -1612,13 +1614,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
         imported_bounds = False
         boundfilename = str(fname) + os.extsep + 'bounds'
         if os.path.exists(boundfilename) and (not imported_bounds):
-            print "Found boundary file", boundfilename
+            print("Found boundary file", boundfilename)
             self.spikeset.importBounds(boundfilename)
             imported_bounds = True
         (root, ext) = os.path.splitext(str(fname))
         boundfilename = root + os.extsep + 'bounds'
         if os.path.exists(boundfilename):
-            print "Found boundary file", boundfilename
+            print("Found boundary file", boundfilename)
             self.spikeset.importBounds(boundfilename)
             imported_bounds = True
 
@@ -1645,8 +1647,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
             'Open ntt file',
             filter='DotSpike (*.spike);;Neuralynx NTT (*.ntt)')
 
+        print(type(fname))
         if fname:
-            self.load_spikefile(str(fname))
+            self.load_spikefile(fname)
 
     def updateFeaturePlot(self):
         if not self.spikeset or not self.junk_cluster:
@@ -1678,16 +1681,16 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 #self.mp_wave.axes[i].errorbar(range(0,
                 #    np.size(self.spikeset.spikes, 1)),
                 #    cluster.wv_mean[:, i], cluster.wv_std[:, i], color='k')
-		self.mp_wave.axes[i].hold(False)
-		self.mp_wave.axes[i].plot(cluster.wv_mean[:,i], 'k',
-				linewidth=2)
-		self.mp_wave.axes[i].hold(True)
-		self.mp_wave.axes[i].plot(cluster.wv_std[:,i] +
-				cluster.wv_mean[:,i], 'k-',
-				linewidth=0.5)
-		self.mp_wave.axes[i].plot(-cluster.wv_std[:,i] +
-				cluster.wv_mean[:,i], 'k-',
-				linewidth=0.5)
+                self.mp_wave.axes[i].hold(False)
+                self.mp_wave.axes[i].plot(cluster.wv_mean[:,i], 'k',
+                        linewidth=2)
+                self.mp_wave.axes[i].hold(True)
+                self.mp_wave.axes[i].plot(cluster.wv_std[:,i] +
+                        cluster.wv_mean[:,i], 'k-',
+                        linewidth=0.5)
+                self.mp_wave.axes[i].plot(-cluster.wv_std[:,i] +
+                        cluster.wv_mean[:,i], 'k-',
+                        linewidth=0.5)
             else:
                 self.mp_wave.axes[i].cla()
 
@@ -1822,9 +1825,9 @@ class PyClustMainWindow(QtGui.QMainWindow):
                 for cluster in self.spikeset.clusters]
 
             pickle.dump(save_bounds, outfile)
-            print "Saved bounds to", outfilename
+            print("Saved bounds to", outfilename)
         outfile.close()
-        print "Saved cluster membership to", outfilename
+        print("Saved cluster membership to", outfilename)
 
         # Save the cluster membership vectors in matlab format
         #outfilename = root + os.extsep + 'mat'
@@ -1938,13 +1941,13 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         chan_no = int(self.ui.spinBox_wavecutter_channel.value()) - 1
 
-        #print "Trying to plot channel", chan_no
+        #print("Trying to plot channel", chan_no)
 
         wf_perm = np.random.permutation(np.nonzero(w)[0])
         num_wave = np.min([int(self.ui.lineEdit_wavecutter_count.text()),
             np.size(wf_perm)])
 
-        #print "Trying to plot", num_wave, "waveforms"
+        #print("Trying to plot", num_wave, "waveforms")
 
         wf_perm = wf_perm[:num_wave]
 
@@ -1965,7 +1968,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
             num_wave = np.min([int(self.ui.lineEdit_wavecutter_count.text()),
                 np.size(wf_perm)])
 
-            #print "Trying to plot", num_wave, "refractory waveforms"
+            #print("Trying to plot", num_wave, "refractory waveforms")
             wf_perm = wf_perm[0, :num_wave]
             if np.size(wf_perm):
                 self.mp_wavecutter.axes.hold(True)
@@ -2072,8 +2075,8 @@ class PyClustMainWindow(QtGui.QMainWindow):
         y0 = height - self.wave_limit_data[3]
         x1 = x0
         y1 = height - event.y
-        rect = [int(val) for val in min(x0, x1),
-            min(y0, y1), abs(x1 - x0), abs(y1 - y0)]
+        rect = [int(val) for val in (min(x0, x1),
+            min(y0, y1), abs(x1 - x0), abs(y1 - y0))]
         self.mp_wavecutter.drawRectangle(rect)
 
     class CommandDeleteWvBoundary(QtGui.QUndoCommand):

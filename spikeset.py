@@ -52,12 +52,12 @@ class Spikeset:
 
     def saveFeatures(self, filename):
         """Save feature info (PCA coefficients) to file."""
-        print "Saving features info, spikeset hash",
+        print("Saving features info, spikeset hash",)
         f = open(filename, 'wb')
         # compute a hash for the spikeset
         b = self.spikes.view(np.uint8)
         hashkey = hashlib.sha1(b).hexdigest()
-        print hashkey, "to file", filename, "."
+        print(hashkey, "to file", filename, ".")
         pickle.dump(hashkey, f)
         pickle.dump(self.feature_special, f)
 
@@ -69,14 +69,14 @@ class Spikeset:
         hashkey = hashlib.sha1(b).hexdigest()
 
         if loadhash == hashkey:
-            print "Spikeset hashes match, loading features info."
+            print("Spikeset hashes match, loading features info.")
             self.calculateFeatures(pickle.load(f))
         else:
-            print "Hashes don't match, features are from a different dataset."
+            print("Hashes don't match, features are from a different dataset.")
 
     def calculateFeatures(self, special=None):
         """Calculate the standard battery of features."""
-        print "Computing features."
+        print("Computing features.")
         if not special:
             self.feature_special = dict()
             self.feature_special['fPCA'] = None
@@ -106,7 +106,7 @@ class Spikeset:
 
     def __del__(self):
         """Destructor."""
-        print "Spikeset object being destroyed"
+        print("Spikeset object being destroyed")
 
     def featureNames(self):
         """Return list of feature names."""
@@ -125,7 +125,7 @@ class Spikeset:
         if color:
             new_cluster.color = color
         else:
-            color_list = [map(lambda x: x / 255.0, cluster.color) for
+            color_list = [tuple(map(lambda x: x / 255.0, cluster.color)) for
                     cluster in self.clusters]
             if color_list == []:
                 new_cluster.color = (50, 170, 170)
@@ -145,13 +145,13 @@ class Spikeset:
 
         versionstr = pickle.load(infile)
         if versionstr == "0.0.1":
-            print "Saved bounds version 0.0.1"
+            print("Saved bounds version 0.0.1")
 
             dumped = pickle.load(infile)
             #self.calculateFeatures(dumped['feature_special'])
 
-            print "Founds", len(dumped['clusters']),
-            print "bounds to import, creating clusters."
+            print("Founds", len(dumped['clusters']),)
+            print("bounds to import, creating clusters.")
             for cluster in dumped['clusters']:
                 clust = self.addCluster(color=cluster['color'])
                 clust.bounds = cluster['bounds']
@@ -166,15 +166,15 @@ class Spikeset:
                 clust.calculateMembership(self)
 
         else:
-            print "Saved bounds version 0.0.0"
+            print("Saved bounds version 0.0.0")
             # the old, very inflexible way of doing things
             #special = versionstr
             #special = pickle.load(infile)
             pickle.load(infile)
             #self.spikeset.calculateFeatures(special)
             saved_bounds = pickle.load(infile)
-            print "Found", len(saved_bounds),
-            print "bounds to import, creating clusters."
+            print("Found", len(saved_bounds),)
+            print("bounds to import, creating clusters.")
             for (col, bound, wave_bound, add_bound, del_bound) \
                     in saved_bounds:
                 clust = self.addCluster(color=col)
@@ -191,7 +191,7 @@ class Spikeset:
         if not os.path.exists(filename):
             return
 
-        #print "Found KKwik cluster file", filename, ':',
+        #print("Found KKwik cluster file", filename, ':',)
         # Everything is little endian
         # A .ackk record is as folows:
         # Header:
@@ -205,17 +205,17 @@ class Spikeset:
         num_samps, = struct.unpack('<Q', f.read(8))
 
         if num_samps != self.N:
-            print "Sample counts don't match up, invalid .ackk file"
-            print num_samps
-            print self.spikeset.N
+            print("Sample counts don't match up, invalid .ackk file")
+            print(num_samps)
+            print(self.spikeset.N)
             f.close()
             return
         elif subjectstr != self.subject:
-            print "Subject lines don't match up, invalid .ackk file"
+            print("Subject lines don't match up, invalid .ackk file")
             f.close()
             return
         elif datestr != self.session:
-            print "Session date strings don't match up, invalid .ackk file"
+            print("Session date strings don't match up, invalid .ackk file")
             f.close()
             return
 
@@ -224,23 +224,23 @@ class Spikeset:
 
         # get a list of cluster numbers
         k = np.unique(labels)
-        print np.size(k) - 1, 'components.'
+        print(np.size(k) - 1, 'components.')
         colors = unique_colors.unique_colors_hsv(np.size(k) - 1)
 
         # create the clusters for each component in the KK file.
         if np.size(k) > 1:
-            print "Importing clusters from .ackk",
+            print("Importing clusters from .ackk",)
             for i in k:
                 if i == 0:
                     continue
-                print i,
+                print(i,)
                 sys.stdout.flush()
                 cluster = self.addCluster(
                     color=tuple([int(a * 255) for a in colors[i - 1]]))
 
                 cluster.member_base = labels == i
                 cluster.calculateMembership(self)
-            print "."
+            print(".")
         pass
 
 
@@ -264,7 +264,7 @@ class Cluster:
         self.isi_bin_count = np.zeros(self.isi_bin_centers.shape)
 
     def __del__(self):
-        # print "Cluster object being destroyed"
+        # print("Cluster object being destroyed")
         pass
 
     def addBoundary(self, bound):
@@ -379,7 +379,7 @@ class Cluster:
             p = u_wv[spikeset.peak_index, :]
             # peak weighted average of the channels
             self.stats['wv_com'] = sum(com_chan * p) / sum(p) * spikeset.dt_ms
-            #print self.stats['wv_com']
+            #print(self.stats['wv_com'])
 
             self.stats['burst'] = (100.0 * np.sum(self.isi <
                 self.burst_period).astype(float)) / \
@@ -492,7 +492,7 @@ class Cluster:
         canvas.repaint()
 
         QtGui.QApplication.processEvents()
-        print "Attempting to autotrim cluster on feature:", fname
+        print("Attempting to autotrim cluster on feature:", fname)
 
         gmm = sklearn.mixture.DPGMM(n_components=10, covariance_type='full')
         gmm.fit(data)
@@ -558,7 +558,7 @@ class Cluster:
 
             # Choose the best projection
             ind = np.argmax(fitness[:, 0])
-            #print "Creating boundary on", fname, projs[ind][0], \
+            #print("Creating boundary on", fname, projs[ind][0], \)
             #       "vs.", fname, projs[ind][1]
             bound = boundaries.BoundaryEllipse2D((fname, fname),
                     (projs[ind][0], projs[ind][1]), ellipses[ind][0],

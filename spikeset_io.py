@@ -47,27 +47,27 @@ def spikesetFromDotSpike(filename):
         f.close()
         return
 
-    print ''
-    print 'Loading', filename
-    print 'Format version #', version_no
+    print('')
+    print('Loading', filename)
+    print('Format version #', version_no)
     num_spikes, = struct.unpack('<Q', f.read(8))
-    print 'Num spikes', num_spikes
+    print('Num spikes', num_spikes)
     num_chans, = struct.unpack('<H', f.read(2))
-    print 'Num channels', num_chans
+    print('Num channels', num_chans)
     num_samps, = struct.unpack('<H', f.read(2))
-    print 'Num samples', num_samps
+    print('Num samples', num_samps)
     fs, = struct.unpack('<I', f.read(4))
-    print 'Sampling frequency', fs
+    print('Sampling frequency', fs)
     peak_align, = struct.unpack('<H', f.read(2))
-    print 'Peak alignment point', peak_align
+    print('Peak alignment point', peak_align)
     uvolt_conversion = np.array(struct.unpack('<dddd', f.read(8 * 4)))
-    print 'Microvolt conversion factor', uvolt_conversion
+    print('Microvolt conversion factor', uvolt_conversion)
     subjectstr = readStringFromBinary(f)
-    print 'Subject string', subjectstr
+    print('Subject string', subjectstr)
     datestr = readStringFromBinary(f)
-    print 'Date string', datestr
+    print('Date string', datestr)
     filterstr = readStringFromBinary(f)
-    print 'Filter string', filterstr
+    print('Filter string', filterstr)
 
     # Records:
     # uint64 - timestamp                    bytes 0:8

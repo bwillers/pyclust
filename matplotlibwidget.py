@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 #
-# Copyright © 2009 Pierre Raybaut
+# Copyright 2009 Pierre Raybaut
 # Licensed under the terms of the MIT License
 
 """
@@ -9,12 +8,11 @@ MatplotlibWidget
 
 Example of matplotlib widget for PyQt4
 
-Copyright © 2009 Pierre Raybaut
+Copyright 2009 Pierre Raybaut
 This software is licensed under the terms of the MIT License
 
 Derived from 'embedding_in_pyqt4.py':
-Copyright © 2005 Florent Rougon, 2006 Darren Dale
-"""
+Copyright 2005 Florent Rougon, 2006 Darren Dale"""
 
 __version__ = "1.0.0"
 
