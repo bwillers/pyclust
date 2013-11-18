@@ -73,6 +73,7 @@ class Spikeset:
             self.calculateFeatures(pickle.load(f))
         else:
             print("Hashes don't match, features are from a different dataset.")
+            self.calculateFeatures()
 
     def calculateFeatures(self, special=None):
         """Calculate the standard battery of features."""
