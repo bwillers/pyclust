@@ -37,7 +37,7 @@ def spikesetFromDotSpike(filename):
     # uint16 - num samples per waveform
     # uint32 - sampling frequency
     # uint16 - peak align point
-    # 4 * float64 - a2d conversion factor
+    # c * float64 - a2d conversion factor
     # uint32 + n x char - date time string
     # uint32 + n x char - subject string
     # uint32 + n x char - filter description
@@ -60,7 +60,7 @@ def spikesetFromDotSpike(filename):
     print('Sampling frequency', fs)
     peak_align, = struct.unpack('<H', f.read(2))
     print('Peak alignment point', peak_align)
-    uvolt_conversion = np.array(struct.unpack('<dddd', f.read(8 * 4)))
+    uvolt_conversion = np.array(struct.unpack('<' + ('d' * num_chans), f.read(8 * num_chans)))
     print('Microvolt conversion factor', uvolt_conversion)
     subjectstr = readStringFromBinary(f)
     print('Subject string', subjectstr)
@@ -81,7 +81,7 @@ def spikesetFromDotSpike(filename):
     f.close()
 
     return spikeset.Spikeset(temp['spikes'] *
-                             np.reshape(uvolt_conversion, [1, 1, 4]),
+                             np.reshape(uvolt_conversion, [1, 1, num_chans]),
                              temp['time'], peak_align, fs, subject=subjectstr,
                              session=datestr)
 
