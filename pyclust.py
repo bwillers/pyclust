@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from __future__ import print_function
+from __future__ import print_function, division
 
 #from PyQt4 import QtCore, QtGui
 from PySide import QtCore, QtGui
@@ -829,22 +829,6 @@ class PyClustMainWindow(QtGui.QMainWindow):
 
         self.activeClusterRadioButton = self.buttonGroup_cluster.checkedButton
 
-        # Set up waveform plot plot axes
-        self.mp_wave.figure.clear()
-        self.mp_wave.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
-            bottom=0, top=1, left=0.0, right=1)
-        self.mp_wave.axes = [None, None, None, None]
-        for i in range(0, 4):
-            if i == 0:
-                self.mp_wave.axes[i] = self.mp_wave.figure.add_subplot(2, 2,
-                    i + 1)
-            else:
-                self.mp_wave.axes[i] = self.mp_wave.figure.add_subplot(2, 2,
-                    i + 1, sharey=self.mp_wave.axes[0])
-            self.mp_wave.axes[i].hold(False)
-            self.mp_wave.axes[i].set_xticks([])
-            self.mp_wave.axes[i].set_yticks([])
-
         # Set up ISI plot axes
         self.mp_isi.figure.clear()
         self.mp_isi.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
@@ -1567,6 +1551,25 @@ class PyClustMainWindow(QtGui.QMainWindow):
         self.t_bin_centers = ((self.t_bins[0:-1] + self.t_bins[1:]) / 2
              - self.spikeset.time[0]) / 60e6
 
+        # Initiate the waveform axes
+        self.mp_wave.figure.clear()
+        self.mp_wave.figure.subplots_adjust(hspace=0.0001, wspace=0.0001,
+            bottom=0, top=1, left=0.0, right=1)
+        self.mp_wave.axes = [None] * self.spikeset.C
+        subplots_x = int(np.ceil(np.sqrt(self.spikeset.C)))
+        subplots_y = int(np.ceil(float(self.spikeset.C) / subplots_x))
+        for i in range(0, self.spikeset.C):
+            if i == 0:
+                self.mp_wave.axes[i] = self.mp_wave.figure.add_subplot(
+                        subplots_y, subplots_x, i + 1)
+            else:
+                self.mp_wave.axes[i] = self.mp_wave.figure.add_subplot(
+                        subplots_y, subplots_x, i + 1,
+                        sharey=self.mp_wave.axes[0])
+            self.mp_wave.axes[i].hold(False)
+            self.mp_wave.axes[i].set_xticks([])
+            self.mp_wave.axes[i].set_yticks([])
+
         # Reset the limits
         self.junk_cluster = spikeset.Cluster(self.spikeset)
         self.junk_cluster.color = (255, 0, 0)
@@ -1676,7 +1679,7 @@ class PyClustMainWindow(QtGui.QMainWindow):
         N = np.sum(w)
 
         # Draw average waveforms
-        for i in range(0, 4):
+        for i in range(0, self.spikeset.C):
             if N:
                 #self.mp_wave.axes[i].errorbar(range(0,
                 #    np.size(self.spikeset.spikes, 1)),

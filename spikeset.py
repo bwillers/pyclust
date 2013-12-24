@@ -4,6 +4,7 @@ Created on Fri Mar 30 04:18:30 2012
 
 @author: Bernard
 """
+from __future__ import print_function
 import random
 
 import pickle
@@ -41,6 +42,7 @@ class Spikeset:
         self.spikes = spikes
         self.time = timestamps
         self.N = len(timestamps)
+        self.C = spikes.shape[2]
         self.peak_index = peak_index
         self.fs = sampling_frequency
         self.dt_ms = 1000.0 / self.fs
